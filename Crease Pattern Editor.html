@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Online Crease Pattern Editor</title>
+        <style>
+            * {
+                text-align: center;
+                box-sizing: border-box;
+            }
+            body {
+                background-color: lightgrey;
+            }
+            #crease-display {
+                user-select: none;
+            }
+            button,
+            input {
+                width: var(--button-width);
+                height: var(--button-height);
+                justify-content: center;
+                text-align: center;
+                align-items: center;
+                appearance: none;
+                box-shadow: none;
+                padding: 0px;
+                border: 1px solid black;
+                background-color: white;
+            }
+
+            button.active {
+                background-color: rgb(154, 151, 151);
+            }
+
+            
+            button:active {
+                background-color: rgb(175, 174, 174);
+            }
+
+            #mountain.active {
+                background-color: red;
+                color: white;
+            }
+            #valley.active {
+                background-color: blue;
+                color: white;
+            }
+            #auxiliary.active {
+                background-color: rgb(174, 221, 243);
+            }
+            #edge.active {
+                background-color: black;
+                color: white;
+            }
+            .grid-line {
+                stroke-width: var(--line-width);
+                stroke: grey;
+
+            }
+
+            .mountain-line {
+                stroke-width: var(--line-width);
+                stroke: red;
+            }
+
+            .valley-line {
+                stroke-width: var(--line-width);
+                stroke: blue;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="buttonPanel">
+        </div>
+    </body>
+
+    <script>
+        let buttonOffset = 0;
+        let gridSize = 2;
+        let lineIncrement = 2;
+        let lineWidth = 2;
+        let sketchMode = "line";
+        let lineType = "mountain";
+        let mouseMode = "up";
+        let vertices = [];
+        let edges = [];
+        let recentVertex;
+        const lineWidthButton = [
+            {id : "decrease-line-width", type : "button", title : "Decrease Line Width", icon : "decreaseWidth.png", functionCall : () => {changeLineWidth(0)}},
+            {id : "increase-line-width", type : "button", title : "Increase Line Width", icon : "increaseWidth.png", functionCall : () => {changeLineWidth(1)}},
+        ];
+        const creaseButton = [
+            {id : "mountain" , type : "button", title : "Mountain" , text : "M", functionCall : () => {changeLineType(event)}},
+            {id : "valley"   , type : "button", title : "Valley"   , text : "V", functionCall : () => {changeLineType(event)}},
+            {id : "auxiliary", type : "button", title : "Auxiliary", text : "A"},
+            {id : "edge"     , type : "button", title : "Edge"     , text : "E"},
+        ];
+        const toolButton = [
+            {id : "line"                , type : "button", title : "Draw Line"                , icon : "drawLine.png"},
+            {id : "id2"                 , type : "button", title : "title2"},
+            {id : "id3"                 , type : "button", title : "title3"},
+            {id : "flatFoldLine"        , type : "button", title : "Draw Flat Foldable Line"  , icon : "flatFoldableLine.png"},
+            {id : "extendLine"          , type : "button", title : "Extend Line"              , icon : "extendLine.png"},
+            {id : "perpendicularLine"   , type : "button", title : "Perpendicular Line"       , icon : "perpendicularLine.png"},
+            {id : "angleBisector"       , type : "button", title : "Angle Bisector"           , icon : "angleBisector.png"},
+            {id : "id4"                 , type : "button", title : "title4"},
+            {id : "extendLineSameColour", type : "button", title : "Extend Line (same colour)", icon : "extendLineSameColour.png"},
+            {id : "alternatingLines"    , type : "button", title : "Draw Alternating Lines"   , icon : "alternatingLines.png"},
+            {id : "reflectOverLine"     , type : "button", title : "Reflect Over Line"        , icon : "reflectOverLine.png"},
+            {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png"}
+        ];
+        const gridButton = [
+                {id : "decrease-grid", type : "button", title : "Decrease Grid Size", icon : "decreaseGrid.png", functionCall : () => {changeGrid(0)}},
+                {id : "increase-grid", type : "button", title : "Increase Grid Size", icon : "increaseGrid.png", functionCall : () => {changeGrid(1)}},
+                {id : "input-grid"   , type : "input" , title : "User Grid Size"                               , functionCall : () => {setGrid(event)}},
+                {id : "set-grid"     , type : "button", title : "Set Grid Size", text : "S"                    , functionCall : () => {setGrid(event)}}
+            ];
+        const svgHeight = 600;
+        const svgWidth = 600;
+        const buttonRowCount = 4;
+        const buttonWidth = 60;
+        const buttonHeight = 40;
+        const gridButtonWidth = buttonHeight;
+        const buttonPanel = document.getElementById("buttonPanel");
+        
+
+        const createGridButtonLayout = () => {
+            for (let i = 0; i < gridButton.length; i++) {
+                createButton(gridButton, i, "gridButton")
+            }
+            buttonOffset += buttonHeight
+        }
+
+        const createLineWidthLayout = () => {
+            for (let i = 0; i < lineWidthButton.length; i++) {
+                createButton(lineWidthButton, i, "lineWidthButton")
+            }
+            buttonOffset += buttonHeight
+        }
+
+        const changeLineWidth = (val) => {
+            if (val) {
+                lineWidth += lineIncrement;
+            } else {
+                if (lineWidth == 1) {
+                    return;
+                } else {
+                    lineWidth -= lineIncrement;
+                }
+            }
+            svg.style.setProperty("--line-width", lineWidth + "px");
+        }
+        
+        const setGrid = (event) => {
+            let gridInput = Number(document.querySelector("#input-grid").value);
+            if (
+                ((event.key == "Enter") && (event.target.tagName === "INPUT")) ||
+                ((event.button == 0)    && (event.target.tagName === "BUTTON"))
+            ) {
+                if (Number.isInteger(gridInput)) {
+                    gridSize = document.querySelector("#input-grid").value;
+                    createGridLines();
+                }
+
+            }
+            
+        }
+
+        const createLine = (x1, x2, y1, y2, className) => {
+            const newLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            newLine.setAttribute("x1", x1);
+            newLine.setAttribute("x2", x2);
+            newLine.setAttribute("y1", y1);
+            newLine.setAttribute("y2", y2);
+            newLine.classList.add(className);
+            svg.appendChild(newLine);
+            return newLine;
+        }
+
+        const createGridLines = () => {
+            const gridLines = document.querySelectorAll(".grid-line");
+            for (const line of gridLines) {
+                line.remove();
+            }
+            for (let col = 1; col < gridSize; col++) {
+                let x1 = (col / gridSize) * 1000;
+                let x2 = (col / gridSize) * 1000;
+                let y1 = 0;
+                let y2 = 1000;
+                createLine(x1, x2, y1, y2, "grid-line");
+            }
+            for (let row = 1; row < gridSize; row++) {
+                let x1 = 0;
+                let x2 = 1000;
+                let y1 = (row / gridSize) * 1000;
+                let y2 = (row / gridSize) * 1000;
+                createLine(x1, x2, y1, y2, "grid-line");
+            }
+        }
+
+        const changeLineType = (event) => {
+            lineType = event.target.id;
+            
+        }
+
+        const changeGrid = (val) => {
+            if (val) {
+                gridSize *= 2;
+            } else {
+                if (gridSize == 1)  {
+                    return;
+                } else {
+                    gridSize = Math.ceil(gridSize / 2);
+                }
+            }
+            createGridLines();
+            document.querySelector("#input-grid").value = gridSize;
+        }
+
+        const createSVG = () => {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute('style', 'border: 1px solid black');
+            svg.setAttribute('width', svgWidth);
+            svg.setAttribute('height', svgHeight);
+            svg.setAttribute("viewBox", "0 0 1000 1000");
+            svg.style.position = "absolute";
+            svg.style.top = "10px";
+            svg.style.left = buttonWidth * buttonRowCount + 20 + "px"
+            svg.style.backgroundColor = "white";
+            svg.id = "crease-display";
+            document.body.appendChild(svg);
+            const coordText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            coordText.setAttribute("x", "10");
+            coordText.setAttribute("y", "20");
+            coordText.setAttribute("font-size", "20")
+            coordText.textContent = "demo";
+            svg.appendChild(coordText);
+            svg.onmousemove = (event) => {
+                coordText.textContent = getSvgCoord(event);
+            }
+            svg.onmousedown = (event) => {
+                mouseDownEvent(event);
+                
+            }
+            svg.onmouseup = (event) => {
+                mouseUpEvent(event);
+                coordText.textContent = vertices;
+            }
+        }
+        
+        const createToggleButtonLayout = (array, className) => {
+            for (let i = 0; i < array.length; i++) {
+                createButton(array, i, className);
+            }
+            const sketchButtons = document.querySelectorAll("." + className);
+            for (const button of sketchButtons) {
+                button.addEventListener("click", () => {
+                    for (const btn of sketchButtons) {
+                        btn.classList.remove("active")
+                    }
+                    button.classList.add("active");
+                })
+            }
+            buttonOffset += Math.ceil(array.length / buttonRowCount) * buttonHeight;
+        }
+        
+        const createButton = (array, id, className) => {
+            const newButton = document.createElement(array[id].type);
+            newButton.id = array[id].id;
+            newButton.title = array[id].title;
+            newButton.style.position = "absolute";
+            newButton.classList.add(className);
+            newButton.style.top = Math.floor(id / buttonRowCount) * buttonHeight + 10 + buttonOffset + "px";
+            newButton.style.left = (id % buttonRowCount) * buttonWidth + 10 + "px";
+            if (array[id].text != undefined) {
+                newButton.innerHTML = array[id].text
+            }
+
+            if ((array[id].functionCall != undefined) && (array[id].type == "button")) {
+                newButton.onclick = array[id].functionCall
+            } else if ((array[id].functionCall != undefined) && (array[id].type == "input")) {
+                newButton.onkeydown = array[id].functionCall;
+            }
+
+            if (array[id].icon != undefined) {
+                newButton.appendChild(insertImg(array[id].icon))
+            }
+            buttonPanel.appendChild(newButton);
+        }
+
+        const insertImg = (fileName) => {
+            const img = document.createElement("img");
+            img.src = fileName;
+            img.style.height = buttonHeight - 2 + "px";
+            img.style.width = img.style.height;
+            return img;
+        }
+
+        const mouseUpEvent = (event) => {
+            switch (sketchMode) {
+                case "line":
+                    vertices.push(getSvgCoord(event));
+                    createLine(recentVertex[0],getSvgCoord(event)[0],recentVertex[1],getSvgCoord(event)[1], lineType + "-line");
+                
+            }
+        }
+
+        const mouseDownEvent = (event) => {
+            switch (sketchMode) {
+                case "line":
+                    vertices.push(getSvgCoord(event));
+                    recentVertex = vertices[vertices.length - 1];
+                    
+            }
+        }
+
+        const getSvgCoord = (event) => {
+            svgDim = svg.getBoundingClientRect();
+            svgX = Math.round(1000 * (event.clientX - svgDim.left) / svgDim.width);
+            svgY = Math.round(1000 * (event.clientY - svgDim.top) / svgDim.height);
+            return ([svgX, svgY]);
+        }
+
+        createToggleButtonLayout(creaseButton, "creaseButton");
+        createGridButtonLayout();
+        createLineWidthLayout();
+        createToggleButtonLayout(toolButton, "toolButton");
+  
+        createSVG();
+        const svg = document.querySelector("#crease-display");
+        svg.style.setProperty("--line-width", lineWidth + "px")
+        createGridLines();
+
+        document.documentElement.style.setProperty("--button-width", buttonWidth + "px")
+        document.documentElement.style.setProperty("--button-height", buttonHeight + "px")
+        document.querySelector("#mountain").classList.add("active");
+        document.querySelector("#input-grid").value = 2;
+        document.querySelector("#line").classList.add("active");
+
+        
+       
+
+
+
+    
+
+
+    </script>
+
+</html>
