@@ -4,11 +4,21 @@
         <title>Online Crease Pattern Editor</title>
         <style>
             * {
-                text-align: center;
                 box-sizing: border-box;
+                font-family: sans-serif;
             }
             body {
                 background-color: lightgrey;
+            }
+            #topMenu {
+                display: flex;
+                font-size: 15px;
+                position: absolute;
+                top: -2px;
+            }
+            #uploadFileButton {
+                height: 20px;
+                width: 100px;
             }
             #crease-display {
                 user-select: none;
@@ -54,9 +64,11 @@
             .grid-line {
                 stroke-width: var(--line-width);
                 stroke: grey;
-
             }
-
+            .preview-line {
+                stroke-width: var(--line-width);
+                stroke: rgb(206, 51, 185);
+            }
             .mountain-line {
                 stroke-width: var(--line-width);
                 stroke: red;
@@ -66,16 +78,24 @@
                 stroke-width: var(--line-width);
                 stroke: blue;
             }
+
         </style>
     </head>
 
     <body>
+        <div id="topMenu">
+            <h2>Online Crease Pattern Editor</h2>
+            <button id="uploadFileButton" style="position: absolute; left:325px; top:20px" onclick="hiddenFileInput.click()">Upload File</button>
+            <input id="hiddenFileInput" type="file" style="display: none;" onchange="fileUpload(event)"/>
+            <p id="uploadFileName" style="position: absolute; left:430px; top:7px;white-space: nowrap;">No File Selected</p>
+        </div>
         <div id="buttonPanel">
         </div>
+        <div id="debug">
+        </div>
     </body>
-
     <script>
-        let buttonOffset = 0;
+        let buttonOffset = 50;
         let gridSize = 2;
         let lineIncrement = 2;
         let lineWidth = 2;
@@ -84,7 +104,11 @@
         let mouseMode = "up";
         let vertices = [];
         let edges = [];
-        let recentVertex;
+        let edges_assignment = [];
+        let recentStartVertex;
+        let recentStartVertexId;
+        let recentEndVertex;
+        let recentEndVertexId;
         const lineWidthButton = [
             {id : "decrease-line-width", type : "button", title : "Decrease Line Width", icon : "decreaseWidth.png", functionCall : () => {changeLineWidth(0)}},
             {id : "increase-line-width", type : "button", title : "Increase Line Width", icon : "increaseWidth.png", functionCall : () => {changeLineWidth(1)}},
@@ -97,8 +121,8 @@
         ];
         const toolButton = [
             {id : "line"                , type : "button", title : "Draw Line"                , icon : "drawLine.png"},
-            {id : "id2"                 , type : "button", title : "title2"},
-            {id : "id3"                 , type : "button", title : "title3"},
+            {id : "restrictedLine"      , type : "button", title : "Restricted Line"          , icon : "restrictedLine.png"},
+            {id : "rabbitEar"           , type : "button", title : "Rabbit Ear"               , icon : "rabbitEar.png"},
             {id : "flatFoldLine"        , type : "button", title : "Draw Flat Foldable Line"  , icon : "flatFoldableLine.png"},
             {id : "extendLine"          , type : "button", title : "Extend Line"              , icon : "extendLine.png"},
             {id : "perpendicularLine"   , type : "button", title : "Perpendicular Line"       , icon : "perpendicularLine.png"},
@@ -110,11 +134,12 @@
             {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png"}
         ];
         const gridButton = [
-                {id : "decrease-grid", type : "button", title : "Decrease Grid Size", icon : "decreaseGrid.png", functionCall : () => {changeGrid(0)}},
-                {id : "increase-grid", type : "button", title : "Increase Grid Size", icon : "increaseGrid.png", functionCall : () => {changeGrid(1)}},
-                {id : "input-grid"   , type : "input" , title : "User Grid Size"                               , functionCall : () => {setGrid(event)}},
-                {id : "set-grid"     , type : "button", title : "Set Grid Size", text : "S"                    , functionCall : () => {setGrid(event)}}
-            ];
+            {id : "decrease-grid", type : "button", title : "Decrease Grid Size", icon : "decreaseGrid.png", functionCall : () => {changeGrid(0)}},
+            {id : "increase-grid", type : "button", title : "Increase Grid Size", icon : "increaseGrid.png", functionCall : () => {changeGrid(1)}},
+            {id : "input-grid"   , type : "input" , title : "User Grid Size"                               , functionCall : () => {setGrid(event)}},
+            {id : "set-grid"     , type : "button", title : "Set Grid Size", text : "S"                    , functionCall : () => {setGrid(event)}}
+        ];
+        const vertexSnapConstant = 0.10;
         const svgHeight = 600;
         const svgWidth = 600;
         const buttonRowCount = 4;
@@ -123,7 +148,6 @@
         const gridButtonWidth = buttonHeight;
         const buttonPanel = document.getElementById("buttonPanel");
         
-
         const createGridButtonLayout = () => {
             for (let i = 0; i < gridButton.length; i++) {
                 createButton(gridButton, i, "gridButton")
@@ -142,7 +166,7 @@
             if (val) {
                 lineWidth += lineIncrement;
             } else {
-                if (lineWidth == 1) {
+                if (lineWidth == 2) {
                     return;
                 } else {
                     lineWidth -= lineIncrement;
@@ -161,18 +185,17 @@
                     gridSize = document.querySelector("#input-grid").value;
                     createGridLines();
                 }
-
             }
-            
         }
 
-        const createLine = (x1, x2, y1, y2, className) => {
+        const createLine = (x1, y1, x2, y2, className) => {
             const newLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
             newLine.setAttribute("x1", x1);
             newLine.setAttribute("x2", x2);
             newLine.setAttribute("y1", y1);
             newLine.setAttribute("y2", y2);
             newLine.classList.add(className);
+            newLine.setAttribute("stroke-width", "var(--line-width)");
             svg.appendChild(newLine);
             return newLine;
         }
@@ -187,14 +210,14 @@
                 let x2 = (col / gridSize) * 1000;
                 let y1 = 0;
                 let y2 = 1000;
-                createLine(x1, x2, y1, y2, "grid-line");
+                createLine(x1, y1, x2, y2, "grid-line");
             }
             for (let row = 1; row < gridSize; row++) {
                 let x1 = 0;
                 let x2 = 1000;
                 let y1 = (row / gridSize) * 1000;
                 let y2 = (row / gridSize) * 1000;
-                createLine(x1, x2, y1, y2, "grid-line");
+                createLine(x1, y1, x2, y2, "grid-line");
             }
         }
 
@@ -224,7 +247,7 @@
             svg.setAttribute('height', svgHeight);
             svg.setAttribute("viewBox", "0 0 1000 1000");
             svg.style.position = "absolute";
-            svg.style.top = "10px";
+            svg.style.top = buttonOffset+ 10 + "px";
             svg.style.left = buttonWidth * buttonRowCount + 20 + "px"
             svg.style.backgroundColor = "white";
             svg.id = "crease-display";
@@ -234,18 +257,183 @@
             coordText.setAttribute("y", "20");
             coordText.setAttribute("font-size", "20")
             coordText.textContent = "demo";
+            coordText.setAttribute("id", "demo");
             svg.appendChild(coordText);
             svg.onmousemove = (event) => {
                 coordText.textContent = getSvgCoord(event);
+                mouseMoveEvent(event);
             }
             svg.onmousedown = (event) => {
                 mouseDownEvent(event);
-                
             }
             svg.onmouseup = (event) => {
+                mouseMode = "up";
                 mouseUpEvent(event);
-                coordText.textContent = vertices;
             }
+            svg.oncontextmenu = (event) => {
+                event.preventDefault();
+            }
+        }
+
+        const mouseUpEvent = (event) => {
+            if (event.button === 0) {
+                switch (sketchMode) {
+                    case "line":
+                        mouseUpLine(event);
+                        break;
+                }
+            } else if (event.button === 2) {
+                //wip
+                return;
+            }
+            
+            for (const line of svg.querySelectorAll(".preview-line")) {
+                line.remove()
+            }
+        }
+
+        const mouseDownEvent = (event) => {
+            if (event.button === 0) {
+                mouseMode = "leftDown"
+                switch (sketchMode) {
+                    case "line":
+                        mouseDownLine(event);
+                        break;
+                }
+            } else if (event.button === 2) {
+                mouseMode = "rightDown";
+                recentStartVertex = [getSvgCoord(event)[0], getSvgCoord(event)[1]];
+                return;
+            }
+        }
+        
+        const mouseMoveEvent = (event) => {
+            if (mouseMode === "leftDown") {
+                switch (sketchMode) {
+                    case ("line"):
+                        if (svg.querySelectorAll(".preview-line").length === 0) {
+                            const previewLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                            previewLine.setAttribute("x1", recentStartVertex[0]);
+                            previewLine.setAttribute("y1", recentStartVertex[1]);
+                            previewLine.setAttribute("x2", getSvgCoord(event)[0]);
+                            previewLine.setAttribute("y2", getSvgCoord(event)[1]);
+                            previewLine.setAttribute("stroke-width", "var(--line-width)");
+                            previewLine.classList.add("preview-line");
+                            switch (lineType) {
+                                case "mountain":
+                                    previewLine.classList.add("mountain-line");
+                                    break;
+                                case "valley":
+                                    previewLine.classList.add("valley-line");
+                                    break;
+                            }
+                            svg.appendChild(previewLine);
+                        } else {
+                            let previewLine = svg.querySelector(".preview-line")
+                            previewLine.setAttribute("x2", getSvgCoord(event)[0]);
+                            previewLine.setAttribute("y2", getSvgCoord(event)[1]);
+                        }
+                        break;
+                }
+            } else if (mouseMode === "rightDown") {
+                if (svg.querySelectorAll(".preview-line").length === 0) {
+                    createLine(recentStartVertex[0], recentStartVertex[1], getSvgCoord(event)[0], recentStartVertex[1], "preview-line")
+                    createLine(getSvgCoord(event)[0], recentStartVertex[1], getSvgCoord(event)[0], getSvgCoord(event)[1], "preview-line")
+                    createLine(getSvgCoord(event)[0], getSvgCoord(event)[1], recentStartVertex[0], getSvgCoord(event)[1], "preview-line")
+                    createLine(recentStartVertex[0], getSvgCoord(event)[1], recentStartVertex[0], recentStartVertex[1], "preview-line")
+                } else {
+                    let previewLineList = svg.querySelectorAll(".preview-line")
+                    previewLineList[0].setAttribute("x2", getSvgCoord(event)[0]);
+                    previewLineList[1].setAttribute("x1", getSvgCoord(event)[0]);
+                    previewLineList[1].setAttribute("x2", getSvgCoord(event)[0]);
+                    previewLineList[1].setAttribute("y2", getSvgCoord(event)[1]);
+                    previewLineList[2].setAttribute("x1", getSvgCoord(event)[0]);
+                    previewLineList[2].setAttribute("y1", getSvgCoord(event)[1]);
+                    previewLineList[2].setAttribute("y2", getSvgCoord(event)[1]);
+                    previewLineList[3].setAttribute("y1", getSvgCoord(event)[1]);
+                }
+            }
+        }
+
+        const fileUploadButton = (event) => {
+            fileUpload(event);
+        }
+
+        const fileUpload = (event) => {
+            const userFile = event.target.files;
+            document.getElementById("uploadFileName").innerHTML = userFile[0].name;
+        }
+
+        const mouseDownLine = (event) => {
+            let userX = getSvgCoord(event)[0];
+            let userY = getSvgCoord(event)[1];
+            recentStartVertex = findNearestVertex(userX, userY);
+            recentStartVertexId = vertices.findIndex(vertex => vertex[0] === recentStartVertex[0] && vertex[1] === recentStartVertex[1])
+            if (recentStartVertexId === -1) {
+                vertices.push(recentStartVertex);
+                recentStartVertexId = vertices.length - 1;
+
+            }
+            debugArr(vertices, edges, edges_assignment)
+        }
+
+        const mouseUpLine = (event) => {
+            let userX = getSvgCoord(event)[0];
+            let userY = getSvgCoord(event)[1];
+            recentEndVertex = findNearestVertex(userX, userY);
+            recentEndVertexId = vertices.findIndex(vertex => vertex[0] === recentEndVertex[0] && vertex[1] === recentEndVertex[1])
+            if (recentEndVertex === recentStartVertex) {
+                vertices.splice(recentStartVertexId, 1);
+                debugArr(vertices, edges, edges_assignment)
+                return;
+            } else if (recentEndVertexId === -1) {
+                vertices.push(recentEndVertex);
+                recentEndVertexId = vertices.length - 1;
+            }
+            createLine(recentStartVertex[0], recentStartVertex[1], recentEndVertex[0], recentEndVertex[1], lineType + "-line");
+            edges.push([recentStartVertexId, recentEndVertexId])
+            switch (lineType) {
+                case "mountain":
+                    edges_assignment.push("M");
+                    break;
+                case "valley":
+                    edges_assignment.push("V");
+                    break;
+            }
+            debugArr(vertices, edges, edges_assignment)
+
+        }
+
+        const findNearestVertex = (x, y) => {
+            let userX = x;
+            let userY = y;
+            let nearestGridX = Math.round(x / (1000 / gridSize)) * (1000 / gridSize);
+            let nearestGridY = Math.round(y / (1000 / gridSize)) * (1000 / gridSize);
+            let minGridDist = getAbsDist(userX, userY, nearestGridX, nearestGridY);
+            let minVertex;
+            let minVertexDist;
+            if (vertices.length > 0) {
+                minVertex = vertices[0];
+                minVertexDist = getAbsDist(vertices[0][0], vertices[0][1], userX, userY); 
+                for (const vertex of vertices) {
+                    let testVertexDist = getAbsDist(vertex[0], vertex[1], userX, userY);
+                    if (testVertexDist <= minVertexDist) {
+                        minVertex = vertex;
+                        minVertexDist = testVertexDist;
+                    }
+                }
+            }
+            if ((minVertex) && (minVertexDist < vertexSnapConstant * 1000 / gridSize)) {
+                return minVertex;
+            } else if (minGridDist < (vertexSnapConstant * 1000 / gridSize)) {
+                return [nearestGridX, nearestGridY];
+            } else {
+                return [userX, userY];
+            }
+        }
+
+        const getAbsDist = (x1, y1, x2, y2) => {
+            return Math.hypot((x1 - x2), (y1 - y2));
         }
         
         const createToggleButtonLayout = (array, className) => {
@@ -296,24 +484,6 @@
             return img;
         }
 
-        const mouseUpEvent = (event) => {
-            switch (sketchMode) {
-                case "line":
-                    vertices.push(getSvgCoord(event));
-                    createLine(recentVertex[0],getSvgCoord(event)[0],recentVertex[1],getSvgCoord(event)[1], lineType + "-line");
-                
-            }
-        }
-
-        const mouseDownEvent = (event) => {
-            switch (sketchMode) {
-                case "line":
-                    vertices.push(getSvgCoord(event));
-                    recentVertex = vertices[vertices.length - 1];
-                    
-            }
-        }
-
         const getSvgCoord = (event) => {
             svgDim = svg.getBoundingClientRect();
             svgX = Math.round(1000 * (event.clientX - svgDim.left) / svgDim.width);
@@ -321,15 +491,18 @@
             return ([svgX, svgY]);
         }
 
-        createToggleButtonLayout(creaseButton, "creaseButton");
-        createGridButtonLayout();
-        createLineWidthLayout();
-        createToggleButtonLayout(toolButton, "toolButton");
-  
         createSVG();
         const svg = document.querySelector("#crease-display");
         svg.style.setProperty("--line-width", lineWidth + "px")
         createGridLines();
+
+        createToggleButtonLayout(creaseButton, "creaseButton");
+        createGridButtonLayout();
+        createLineWidthLayout();
+        createToggleButtonLayout(toolButton, "toolButton");
+
+  
+
 
         document.documentElement.style.setProperty("--button-width", buttonWidth + "px")
         document.documentElement.style.setProperty("--button-height", buttonHeight + "px")
@@ -337,14 +510,30 @@
         document.querySelector("#input-grid").value = 2;
         document.querySelector("#line").classList.add("active");
 
-        
-       
+        //For displaying vertex and crease arrays for debugging purposes
+        debugText = document.createElement("p");
+        debugText.id = "debugText"
+        debugText.style.position = "absolute"
+        debugText.style.top = "10px"
+        debugText.style.left = "900px"
+        debugText.innerHTML = "debug"
+        const debugArr = (arr1, arr2, arr3) => {
+            text = "vertices <br>";
+            for (elmt of arr1) {
+                text += "[" + elmt + "]" + "<br>"
+            }
+            text += "<br> edges <br>"
 
+            for (elmt of arr2) {
+                text += "[" + elmt + "]" + "<br>"
+            }
+            text += "<br> edges assignment <br>"
 
-
-    
-
-
+            for (elmt of arr3) {
+                text += "'" + elmt + "'" + "<br>"
+            }
+            document.querySelector("#debugText").innerHTML = text
+        }
+        document.body.appendChild(debugText)
     </script>
-
 </html>
