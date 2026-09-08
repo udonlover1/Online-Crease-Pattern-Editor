@@ -5,16 +5,22 @@
         <style>
             * {
                 box-sizing: border-box;
-                font-family: sans-serif;
+                font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                padding: 0px;
+                margin: 2px;
             }
             body {
                 background-color: lightgrey;
+                
             }
             #topMenu {
-                display: flex;
-                font-size: 15px;
-                position: absolute;
-                top: -2px;
+                display: grid;
+                align-items: center;
+                text-align: center;
+                grid-template-columns: auto auto;
+                justify-content: left;
+                
+
             }
             #uploadFileButton {
                 height: 20px;
@@ -69,6 +75,7 @@
                 stroke-width: var(--line-width);
                 stroke: rgb(206, 51, 185);
             }
+
             .mountain-line {
                 stroke-width: var(--line-width);
                 stroke: red;
@@ -78,24 +85,40 @@
                 stroke-width: var(--line-width);
                 stroke: blue;
             }
+            
+            .auxiliary-line {
+                stroke-width: var(--line-width);
+                stroke: rgb(174, 221, 243);
+            }
+
+            .edge-line {
+                stroke-width: var(--line-width);
+                stroke: black;
+            }
+
+
 
         </style>
     </head>
-
     <body>
-        <div id="topMenu">
-            <h2>Online Crease Pattern Editor</h2>
-            <button id="uploadFileButton" style="position: absolute; left:325px; top:20px" onclick="hiddenFileInput.click()">Upload File</button>
-            <input id="hiddenFileInput" type="file" style="display: none;" onchange="fileUpload(event)"/>
-            <p id="uploadFileName" style="position: absolute; left:430px; top:7px;white-space: nowrap;">No File Selected</p>
+        <div>
+            <h2>Online Crease Pattern Editor</h2>   
         </div>
+        <div id="topMenu">
+            <button id="uploadFileButton" onclick="hiddenFileInput.click()">Upload File</button>
+            <input id="hiddenFileInput" type="file" style="display: none;" onchange="fileUpload(event)"/>
+            <p id="uploadFileName">No File Selected</p>
+        </div>
+
         <div id="buttonPanel">
         </div>
         <div id="debug">
+
         </div>
     </body>
+
     <script>
-        let buttonOffset = 50;
+        let buttonOffset = 60;
         let gridSize = 2;
         let lineIncrement = 2;
         let lineWidth = 2;
@@ -116,8 +139,8 @@
         const creaseButton = [
             {id : "mountain" , type : "button", title : "Mountain" , text : "M", functionCall : () => {changeLineType(event)}},
             {id : "valley"   , type : "button", title : "Valley"   , text : "V", functionCall : () => {changeLineType(event)}},
-            {id : "auxiliary", type : "button", title : "Auxiliary", text : "A"},
-            {id : "edge"     , type : "button", title : "Edge"     , text : "E"},
+            {id : "auxiliary", type : "button", title : "Auxiliary", text : "A", functionCall : () => {changeLineType(event)}},
+            {id : "edge"     , type : "button", title : "Edge"     , text : "E", functionCall : () => {changeLineType(event)}},
         ];
         const toolButton = [
             {id : "line"                , type : "button", title : "Draw Line"                , icon : "drawLine.png"},
@@ -148,13 +171,14 @@
         const gridButtonWidth = buttonHeight;
         const buttonPanel = document.getElementById("buttonPanel");
         
+ 
+
         const createGridButtonLayout = () => {
             for (let i = 0; i < gridButton.length; i++) {
                 createButton(gridButton, i, "gridButton")
             }
             buttonOffset += buttonHeight
         }
-
         const createLineWidthLayout = () => {
             for (let i = 0; i < lineWidthButton.length; i++) {
                 createButton(lineWidthButton, i, "lineWidthButton")
@@ -173,19 +197,6 @@
                 }
             }
             svg.style.setProperty("--line-width", lineWidth + "px");
-        }
-        
-        const setGrid = (event) => {
-            let gridInput = Number(document.querySelector("#input-grid").value);
-            if (
-                ((event.key == "Enter") && (event.target.tagName === "INPUT")) ||
-                ((event.button == 0)    && (event.target.tagName === "BUTTON"))
-            ) {
-                if (Number.isInteger(gridInput)) {
-                    gridSize = document.querySelector("#input-grid").value;
-                    createGridLines();
-                }
-            }
         }
 
         const createLine = (x1, y1, x2, y2, className) => {
@@ -223,6 +234,19 @@
 
         const changeLineType = (event) => {
             lineType = event.target.id;
+        }
+                const setGrid = (event) => {
+            let gridInput = Number(document.querySelector("#input-grid").value);
+            if (
+                ((event.key == "Enter") && (event.target.tagName === "INPUT")) ||
+                ((event.button == 0)    && (event.target.tagName === "BUTTON"))
+            ) {
+                if (Number.isInteger(gridInput)) {
+                    gridSize = document.querySelector("#input-grid").value;
+                    createGridLines();
+                }
+
+            }
             
         }
 
@@ -275,6 +299,59 @@
             }
         }
 
+        
+        const fileUpload = (event) => {
+            const userFile = event.target.files;
+            document.getElementById("uploadFileName").innerHTML = userFile[0].name;
+        }
+        const fileUploadButton = (event) => {
+            fileUpload(event);
+        }
+
+        const mouseDownLine = (event) => {
+            let userX = getSvgCoord(event)[0];
+            let userY = getSvgCoord(event)[1];
+            recentStartVertex = findNearestVertex(userX, userY);
+            recentStartVertexId = vertices.findIndex(vertex => vertex[0] === recentStartVertex[0] && vertex[1] === recentStartVertex[1])
+            if (recentStartVertexId === -1) {
+                vertices.push(recentStartVertex);
+                recentStartVertexId = vertices.length - 1;
+
+            }
+            debugArr(vertices, edges, edges_assignment)
+        }
+        const mouseUpLine = (event) => {
+            let userX = getSvgCoord(event)[0];
+            let userY = getSvgCoord(event)[1];
+            recentEndVertex = findNearestVertex(userX, userY);
+            recentEndVertexId = vertices.findIndex(vertex => vertex[0] === recentEndVertex[0] && vertex[1] === recentEndVertex[1])
+            if (recentEndVertex === recentStartVertex) {
+                vertices.splice(recentStartVertexId, 1);
+                debugArr(vertices, edges, edges_assignment)
+                return;
+            } else if (recentEndVertexId === -1) {
+                vertices.push(recentEndVertex);
+                recentEndVertexId = vertices.length - 1;
+            }
+            createLine(recentStartVertex[0], recentStartVertex[1], recentEndVertex[0], recentEndVertex[1], lineType + "-line");
+            edges.push([recentStartVertexId, recentEndVertexId])
+            switch (lineType) {
+                case "mountain":
+                    edges_assignment.push("M");
+                    break;
+                case "valley":
+                    edges_assignment.push("V");
+                    break;
+                case "auxiliary":
+                    edges_assignment.push("A");
+                    break;
+                case "edge":
+                    edges_assignment.push("E");
+                    break;
+            }
+            debugArr(vertices, edges, edges_assignment)
+
+        }
         const mouseUpEvent = (event) => {
             if (event.button === 0) {
                 switch (sketchMode) {
@@ -284,14 +361,12 @@
                 }
             } else if (event.button === 2) {
                 //wip
-                return;
             }
             
             for (const line of svg.querySelectorAll(".preview-line")) {
                 line.remove()
             }
         }
-
         const mouseDownEvent = (event) => {
             if (event.button === 0) {
                 mouseMode = "leftDown"
@@ -299,14 +374,15 @@
                     case "line":
                         mouseDownLine(event);
                         break;
+                        
                 }
             } else if (event.button === 2) {
                 mouseMode = "rightDown";
                 recentStartVertex = [getSvgCoord(event)[0], getSvgCoord(event)[1]];
                 return;
             }
+
         }
-        
         const mouseMoveEvent = (event) => {
             if (mouseMode === "leftDown") {
                 switch (sketchMode) {
@@ -319,14 +395,7 @@
                             previewLine.setAttribute("y2", getSvgCoord(event)[1]);
                             previewLine.setAttribute("stroke-width", "var(--line-width)");
                             previewLine.classList.add("preview-line");
-                            switch (lineType) {
-                                case "mountain":
-                                    previewLine.classList.add("mountain-line");
-                                    break;
-                                case "valley":
-                                    previewLine.classList.add("valley-line");
-                                    break;
-                            }
+                            previewLine.classList.add(lineType + "-line")
                             svg.appendChild(previewLine);
                         } else {
                             let previewLine = svg.querySelector(".preview-line")
@@ -351,57 +420,10 @@
                     previewLineList[2].setAttribute("y1", getSvgCoord(event)[1]);
                     previewLineList[2].setAttribute("y2", getSvgCoord(event)[1]);
                     previewLineList[3].setAttribute("y1", getSvgCoord(event)[1]);
+
                 }
-            }
-        }
-
-        const fileUploadButton = (event) => {
-            fileUpload(event);
-        }
-
-        const fileUpload = (event) => {
-            const userFile = event.target.files;
-            document.getElementById("uploadFileName").innerHTML = userFile[0].name;
-        }
-
-        const mouseDownLine = (event) => {
-            let userX = getSvgCoord(event)[0];
-            let userY = getSvgCoord(event)[1];
-            recentStartVertex = findNearestVertex(userX, userY);
-            recentStartVertexId = vertices.findIndex(vertex => vertex[0] === recentStartVertex[0] && vertex[1] === recentStartVertex[1])
-            if (recentStartVertexId === -1) {
-                vertices.push(recentStartVertex);
-                recentStartVertexId = vertices.length - 1;
 
             }
-            debugArr(vertices, edges, edges_assignment)
-        }
-
-        const mouseUpLine = (event) => {
-            let userX = getSvgCoord(event)[0];
-            let userY = getSvgCoord(event)[1];
-            recentEndVertex = findNearestVertex(userX, userY);
-            recentEndVertexId = vertices.findIndex(vertex => vertex[0] === recentEndVertex[0] && vertex[1] === recentEndVertex[1])
-            if (recentEndVertex === recentStartVertex) {
-                vertices.splice(recentStartVertexId, 1);
-                debugArr(vertices, edges, edges_assignment)
-                return;
-            } else if (recentEndVertexId === -1) {
-                vertices.push(recentEndVertex);
-                recentEndVertexId = vertices.length - 1;
-            }
-            createLine(recentStartVertex[0], recentStartVertex[1], recentEndVertex[0], recentEndVertex[1], lineType + "-line");
-            edges.push([recentStartVertexId, recentEndVertexId])
-            switch (lineType) {
-                case "mountain":
-                    edges_assignment.push("M");
-                    break;
-                case "valley":
-                    edges_assignment.push("V");
-                    break;
-            }
-            debugArr(vertices, edges, edges_assignment)
-
         }
 
         const findNearestVertex = (x, y) => {
@@ -510,7 +532,7 @@
         document.querySelector("#input-grid").value = 2;
         document.querySelector("#line").classList.add("active");
 
-        //For displaying vertex and crease arrays for debugging purposes
+        //array display for debugging purposes
         debugText = document.createElement("p");
         debugText.id = "debugText"
         debugText.style.position = "absolute"
@@ -523,7 +545,6 @@
                 text += "[" + elmt + "]" + "<br>"
             }
             text += "<br> edges <br>"
-
             for (elmt of arr2) {
                 text += "[" + elmt + "]" + "<br>"
             }
@@ -533,6 +554,7 @@
                 text += "'" + elmt + "'" + "<br>"
             }
             document.querySelector("#debugText").innerHTML = text
+
         }
         document.body.appendChild(debugText)
     </script>
