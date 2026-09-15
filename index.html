@@ -339,7 +339,7 @@
                 recentStartVertexId = vertices.length;
 
             }
-            //debugArr(vertices, edges, edges_assignment)
+            
         }
         const mouseUpLine = (event) => {
             let userX = getSvgCoord(event)[0];
@@ -461,6 +461,7 @@
             for (const line of svg.querySelectorAll(".preview-line")) {
                 line.remove()
             }
+			debugArr(vertices, edges, edges_assignment)
         }
         const setPreviewLine = (event) => {
             if (svg.querySelectorAll(".preview-line").length === 0) {
