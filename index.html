@@ -12,16 +12,22 @@
             }
             body {
                 background-color: lightgrey;
-                
             }
             #topMenu {
                 display: grid;
-                align-items: center;
                 text-align: center;
-                grid-template-columns: auto auto;
+                justify-content: left;
+            }
+            #topMenu > div {
+                display: flex;
+                align-items: center;
                 justify-content: left;
             }
             #uploadFileButton {
+                height: 20px;
+                width: 100px;
+            }
+            #resetViewbox {
                 height: 20px;
                 width: 100px;
             }
@@ -31,31 +37,28 @@
             #crease-display {
                 user-select: none;
             }
-            button,
-            input {
+            button,input {
                 width: var(--button-width);
                 height: var(--button-height);
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 text-align: center;
-                appearance: none;
                 box-shadow: none;
                 padding: 0px;
                 border: 1px solid black;
                 background-color: white;
-                
             }
-
+            input[type="checkbox"] {
+                width: 20px;
+                height: 20px;
+            }
             button.active {
                 background-color: rgb(154, 151, 151);
             }
-
-            
             button:active {
                 background-color: rgb(175, 174, 174);
             }
-
             #mountain.active {
                 background-color: red;
                 color: white;
@@ -79,29 +82,22 @@
                 stroke-width: var(--line-width);
                 stroke: rgb(206, 51, 185);
             }
-
             .mountain-line {
                 stroke-width: var(--line-width);
                 stroke: red;
             }
-
             .valley-line {
                 stroke-width: var(--line-width);
                 stroke: blue;
             }
-            
             .auxiliary-line {
                 stroke-width: var(--line-width);
                 stroke: rgb(174, 221, 243);
             }
-
             .edge-line {
                 stroke-width: var(--line-width);
                 stroke: black;
             }
-
-
-
         </style>
     </head>
     <body>
@@ -109,20 +105,30 @@
             <h2>Online Crease Pattern Editor</h2>   
         </div>
         <div id="topMenu">
-            <button id="uploadFileButton" onclick="hiddenFileInput.click()">Upload File</button>
-            <input id="hiddenFileInput" type="file" style="display: none;" onchange="fileUpload(event)"/>
-            <p id="uploadFileName">No File Selected</p>
+            <div>
+                <button id="uploadFileButton" onclick="hiddenFileInput.click()">Upload File</button>
+                <input id="hiddenFileInput" type="file" style="display: none;" onchange="fileUpload(event)"/>
+                <p id="uploadFileName">No File Selected</p>
+            </div>
+            <div>
+                <input id="displayVertices" type="checkbox" onchange="displayVertices()"/>
+                <p>Display Vertices</p>
+            </div>
+            <div>
+                <input id="displayEdges" type="checkbox" onchange="displayEdges2()"/>
+                <p>Display Edges</p>
+            </div>
+            <div>
+                <button id="resetViewbox" onclick="resetViewbox()">Reset Zoom</button>
+            </div>
         </div>
-
         <div id="buttonPanel">
         </div>
         <div id="debug">
-
         </div>
     </body>
-
     <script>
-        let buttonOffset = 60;
+        let buttonOffset = 150;
         let svgOffset = 40;
         let SVGHeight = 10000;
         let gridSize = 2;
@@ -139,6 +145,7 @@
         let recentEndVertex;
         let recentEndVertexId;
         let svgViewbox = {x1 : 0, y1 : 0, x2 : SVGHeight, y2 : SVGHeight}
+        let pressedKey = "";
         const lineWidthButton = [
             {id : "decrease-line-width", type : "button", title : "Decrease Line Width", icon : "decreaseWidth.png", functionCall : () => {changeLineWidth(0)}},
             {id : "increase-line-width", type : "button", title : "Increase Line Width", icon : "increaseWidth.png", functionCall : () => {changeLineWidth(1)}},
@@ -161,7 +168,11 @@
             {id : "extendLineSameColour", type : "button", title : "Extend Line (same colour)", icon : "extendLineSameColour.png"},
             {id : "alternatingLines"    , type : "button", title : "Draw Alternating Lines"   , icon : "alternatingLines.png"},
             {id : "reflectOverLine"     , type : "button", title : "Reflect Over Line"        , icon : "reflectOverLine.png"},
-            {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png"}
+            {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png"},
+            {id : "selectLines"         , type : "button", title : "Select Lines"             , icon : "selectLines.png"},
+            {id : "selectAll"           , type : "button", title : "Select All"               , icon : "selectAll.png"},
+            {id : "unselectLines"       , type : "button", title : "Unselect Lines"           , icon : "unselectLines.png"},
+            {id : "deselectAll"         , type : "button", title : "Deselect All"             , icon : "deselectAll.png"}
         ];
         const gridButton = [
             {id : "decrease-grid", type : "button", title : "Decrease Grid Size", icon : "decreaseGrid.png", functionCall : () => {changeGrid(0)}},
@@ -170,7 +181,7 @@
             {id : "set-grid"     , type : "button", title : "Set Grid Size", text : "S"                    , functionCall : () => {setGrid(event)}}
         ];
         const vertexSnapConstant = 0.10;
-        const zoomConstant = 0.7;
+        const zoomConstant = 0.95;
         const svgHeight = 600;
         const svgWidth = 600;
         const buttonRowCount = 4;
@@ -178,8 +189,73 @@
         const buttonHeight = 40;
         const gridButtonWidth = buttonHeight;
         const buttonPanel = document.getElementById("buttonPanel");
+        //add: import/ export .fold, select, delete
+
+        window.onkeydown = (event) => {
+            updatePressedKey(event);
+        }
+        window.onkeyup = (event) => {
+            updateReleasedKey(event);
+        }
         
- 
+        const resetViewbox = () => {
+            SVGHeight = 10000;
+            svgViewbox = {x1 : 0, y1 : 0, x2 : SVGHeight, y2 : SVGHeight};
+            svg.setAttribute("viewBox", `${svgViewbox.x1} ${svgViewbox.y1} ${svgViewbox.x2} ${svgViewbox.y2}`);
+
+
+        }
+        
+        const updatePressedKey = (event) => {
+            if (pressedKey === "") {
+                pressedKey = event.code;
+                
+            } else if (pressedKey === "ShiftLeft" || pressedKey === "ShiftRight") {
+                let viewboxXShift = 0;
+                let viewboxYShift = 0;
+                switch (event.code) {
+                    case "ArrowLeft":
+                        viewboxXShift = -0.02 * SVGHeight;
+                        break;
+                    case "ArrowRight":
+                        viewboxXShift = 0.02 * SVGHeight;
+                        break;
+                    case "ArrowUp":
+                        viewboxYShift = -0.02 * SVGHeight;
+                        break;
+                    case "ArrowDown":
+                        viewboxYShift = 0.02 * SVGHeight;
+                        break;
+                }
+                svgViewbox.x1 += viewboxXShift;
+                svgViewbox.y1 += viewboxYShift;
+                svg.setAttribute("viewBox", `${svgViewbox.x1} ${svgViewbox.y1} ${svgViewbox.x2} ${svgViewbox.y2}`);
+            } else if (pressedKey === "ControlLeft" || pressedKey === "ControlRight") {
+                switch (event.code) {
+                    case "ArrowUp":
+                        svgViewbox.x1 -= ((1 - zoomConstant) / zoomConstant) * SVGHeight / 2;
+                        svgViewbox.y1 -= ((1 - zoomConstant) / zoomConstant) * SVGHeight / 2;
+                        SVGHeight /= zoomConstant;
+                        break;
+                    case "ArrowDown":
+                        svgViewbox.x1 += (1 - zoomConstant) * SVGHeight / 2;
+                        svgViewbox.y1 += (1 - zoomConstant) * SVGHeight / 2;
+                        SVGHeight *= zoomConstant;
+                        break;
+                }
+                
+                svgViewbox.x2 = SVGHeight;
+                svgViewbox.y2 = SVGHeight;
+            }
+            svg.setAttribute("viewBox", `${svgViewbox.x1} ${svgViewbox.y1} ${svgViewbox.x2} ${svgViewbox.y2}`);
+        }
+        const updateReleasedKey = (event) => {
+            if (event.code === pressedKey) {
+                pressedKey = "";
+            } else {
+                return;
+            }
+        }
 
         const createGridButtonLayout = () => {
             for (let i = 0; i < gridButton.length; i++) {
@@ -310,9 +386,9 @@
             let viewBoxOffsetY = (getSvgCoord(event)[1] - svgViewbox.y1)/(svgViewbox.y2);
 
             if (event.deltaY > 0) {
-                SVGHeight /= 0.95;
+                SVGHeight /= zoomConstant;
             } else {
-                SVGHeight *= 0.95;
+                SVGHeight *= zoomConstant;
             }
             svgViewbox.x1 = (getSvgCoord(event)[0] - (SVGHeight * viewBoxOffsetX));
             svgViewbox.y1 = (getSvgCoord(event)[1] - (SVGHeight * viewBoxOffsetY));
@@ -322,12 +398,68 @@
 
         }
         
-        const fileUpload = (event) => {
-            const userFile = event.target.files;
-            document.getElementById("uploadFileName").innerHTML = userFile[0].name;
+        let userFile;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            userFile = JSON.parse(event.target.result);
+            fileDisplay();
         }
-        const fileUploadButton = (event) => {
-            fileUpload(event);
+
+        const fileDisplay = () => {
+
+            let vertices_coords = userFile.vertices_coords;
+            edges = userFile.edges_vertices;
+            edges_assignment = userFile.edges_assignment;
+
+            //find largest vertex coordinate (typically the bottomright corner of the square crease pattern)
+            let maxCoord = 0;
+            for (let i = 0; i < userFile.vertices_coords.length; i++) {
+                if (Math.max(vertices_coords[i][0], vertices_coords[i][1]) > maxCoord) {
+                    maxCoord = Math.max(vertices_coords[i][0], vertices_coords[i][1])
+                }   
+            }
+
+            //factor to scale vertex coordinates to default SVG height/ width (10000 units)
+            let scalingFactor = 10000 / maxCoord;
+            vertices = []; 
+            for (let i = 0; i < vertices_coords.length; i++) {
+                vertices.push([vertices_coords[i][0] * scalingFactor, vertices_coords[i][1] * scalingFactor])
+            }
+            for (const line of document.querySelectorAll(".edge-line, .mountain-line, .valley-line")) {
+                line.remove();
+            }
+            
+            for (let i = 0; i < edges.length; i++) {
+                let lineClass;
+                switch(edges_assignment[i]) {
+                    case ("B"):
+                        lineClass = "edge-line";
+                        break;
+                    case ("M"):
+                        lineClass = "mountain-line";
+                        break;
+                    case ("V"):
+                        lineClass = "valley-line";
+                        break;
+                }
+                let x1 = vertices[edges[i][0]][0];
+                let y1 = vertices[edges[i][0]][1];
+                let x2 = vertices[edges[i][1]][0];
+                let y2 = vertices[edges[i][1]][1];
+                createLine(x1, y1, x2, y2, lineClass);
+            }
+        }
+
+        const fileUpload = (event) => {
+            const rawFile = event.target.files;
+            const extension = rawFile[0].name.split('.').pop().toLowerCase();
+            if (extension !== "fold") {
+                document.getElementById("uploadFileName").innerHTML = "Invalid File Type!";
+            } else {
+                document.getElementById("uploadFileName").innerHTML = rawFile[0].name;
+                reader.readAsText(rawFile[0]);
+            }
+            
         }
 
         const mouseDownLine = (event) => {
@@ -336,10 +468,10 @@
             recentStartVertex = findNearestVertex(userX, userY);
             recentStartVertexId = vertices.findIndex(vertex => vertex[0] === recentStartVertex[0] && vertex[1] === recentStartVertex[1])
             if (recentStartVertexId === -1) {
-                recentStartVertexId = vertices.length;
-
+                vertices.push(recentStartVertex);
+                recentStartVertexId = vertices.length - 1;
             }
-            
+            debugArr(vertices, edges, edges_assignment)
         }
         const mouseUpLine = (event) => {
             let userX = getSvgCoord(event)[0];
@@ -348,10 +480,10 @@
             recentEndVertex = findNearestVertex(userX, userY);
             recentEndVertexId = vertices.findIndex(vertex => vertex[0] === recentEndVertex[0] && vertex[1] === recentEndVertex[1])
             if (recentEndVertex[1] === recentStartVertex[1] && recentEndVertex[0] === recentStartVertex[0]) {
-                //debugArr(vertices, edges, edges_assignment)
+                debugArr(vertices, edges, edges_assignment)
                 return;
             } else if (recentEndVertexId === -1) {
-                vertices.push(recentStartVertex);
+
                 vertices.push(recentEndVertex);
                 recentEndVertexId = vertices.length - 1;
             }
@@ -397,41 +529,131 @@
                         break;
                 }
             }
+
             
-            const edges_copy = structuredClone(edges);
-            let lines = document.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-            let newLineIntersections = [0];
+            const edges_length = edges.length;
+            let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
+            let newLineIntersections = [recentStartVertex, recentEndVertex];
             
-            for (let i = 0; i < edges_copy.length; i++) {
+            for (let i = 0; i < edges_length; i++) {
                 if (i === recentEdgeId) {
                     continue;
                 } else if (Array.isArray(findIntersection(edges[recentEdgeId], edges[i]))) {
-                    
-                    let newVertex = findIntersection(edges[recentEdgeId], edges[i])[0];
 
-                    vertices.push(newVertex);
-                    
-                    let newVertexId = vertices.length - 1;
-                    let oldVertex = [lines[i].getAttribute("x2"),lines[i].getAttribute("y2")]
+                    let intersectionVertex = findIntersection(edges[recentEdgeId], edges[i])[0];
+
+                    //adds intersection vertex to array to split drawn line afterwards
+                    if (newLineIntersections.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]) === -1) {
+                        newLineIntersections.push(intersectionVertex);
+                    }
+
+                    //checks if intersectionVertex is already in vertices, otherwise creates a new vertex
+                    let intersectionVertexId = vertices.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1])
+                    if (intersectionVertexId === -1) {
+                        vertices.push(intersectionVertex);
+                        intersectionVertexId = vertices.length - 1;
+                    }
+                    let oldVertex = [+lines[i].getAttribute("x2"), +lines[i].getAttribute("y2")]
                     let oldVertexId = edges[i][1];
                     let oldLineType = lines[i].getAttribute("class");
                     let oldLineAssignment = edges_assignment[i]
-            
-                    
-                    //handles creating new lines for SVG
-                    lines[i].setAttribute("x2", newVertex[0]);
-                    lines[i].setAttribute("y2", newVertex[1]);
-                    createLine(newVertex[0], newVertex[1], oldVertex[0], oldVertex[1], oldLineType);
-                    
-                    
-                    //handles creating new element in edges, edges_assignment
-                    edges[i][1] = newVertexId;
-                    edges.push([oldVertexId, newVertexId]);
-                    edges_assignment.push(oldLineAssignment);
+
+
+
+                    //checks if intersectionVertex is at endpoint of testLine, to avoid creating lines of 0 length
+                    if ((oldVertex[0] != intersectionVertex[0]) || (oldVertex[1] != intersectionVertex[1])) {
+                        //handles creating new lines for SVG: shortens original line to end at intersection vertex
+                        lines[i].setAttribute("x2", intersectionVertex[0]);
+                        lines[i].setAttribute("y2", intersectionVertex[1]);
+                        //handles creating new lines for SVG: creates new line from intersection vertex to original end vertex
+                        createLine(intersectionVertex[0], intersectionVertex[1], oldVertex[0], oldVertex[1], oldLineType);
+                            
+                        //handles creating new element in edges, edges_assignment
+                        edges[i][1] = intersectionVertexId;
+                        edges.push([intersectionVertexId, oldVertexId]);
+                        edges_assignment.push(oldLineAssignment);
+                    }
                     
                 }
             }
+            if (recentStartVertex[0] < recentEndVertex[0]) {
+                newLineIntersections.sort((a, b) => (a[0] - b[0]));
+            } else if (recentStartVertex[0] > recentEndVertex[0]) {
+                newLineIntersections.sort((a, b) => (b[0] - a[0]));
+            } else {
+                if (recentStartVertex[1] < recentEndVertex[1]) {
+                    newLineIntersections.sort((a, b) => (a[1] - b[1]));
+                } else {
+                    newLineIntersections.sort((a, b) => (b[1] - a[1]));
+                }
+            }
+            
+            if (newLineIntersections.length > 2) {
+                lines[recentEdgeId].setAttribute("x2", newLineIntersections[1][0]);
+                lines[recentEdgeId].setAttribute("y2", newLineIntersections[1][1]);
+                edges[recentEdgeId][1] = vertices.findIndex(vertex => vertex[0] === newLineIntersections[1][0] && vertex[1] === newLineIntersections[1][1])
+                for (i = 2; i < newLineIntersections.length; i++) {
+                    createLine(newLineIntersections[i - 1][0], newLineIntersections[i - 1][1], newLineIntersections[i][0], newLineIntersections[i][1], lineType + "-line");
+                    edges.push([
+                        vertices.findIndex(vertex => vertex[0] === newLineIntersections[i - 1][0] && vertex[1] === newLineIntersections[i - 1][1]),
+                        vertices.findIndex(vertex => vertex[0] === newLineIntersections[i][0] && vertex[1] === newLineIntersections[i][1])
+                    ]);
+                    switch (lineType) {
+                        case "mountain":
+                            edges_assignment.push("M");
+                            break;
+                        case "valley":
+                            edges_assignment.push("V");
+                            break;
+                        case "auxiliary":
+                            edges_assignment.push("A");
+                            break;
+                        case "edge":
+                            edges_assignment.push("E");
+                            break;
+                    }
+                }
+            }
+
         }
+
+        const displayEdges2 = () => {
+            svg.querySelectorAll(".edge-text").forEach(text => text.remove());
+            let lines = document.querySelectorAll(".edge-line, .mountain-line, .valley-line");
+            for (let i = 0; i < lines.length; i++) {
+                edgeDisplay = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                edgeDisplay.setAttribute("x", `${(+lines[i].getAttribute("x1") + +lines[i].getAttribute("x2")) / 2}`);
+                edgeDisplay.setAttribute("y", `${(+lines[i].getAttribute("y1") + +lines[i].getAttribute("y2")) / 2}`);
+                edgeDisplay.setAttribute("class", "edge-text")
+                //edgeDisplay.textContent = `[${Math.trunc(lines[i].getAttribute("x1"))},${Math.trunc(lines[i].getAttribute("y1"))},${Math.trunc(lines[i].getAttribute("x2"))},${Math.trunc(lines[i].getAttribute("y2"))}]`;
+                //edgeDisplay.textContent = `[${i}]`
+                edgeDisplay.textContent = `[${edges[i]}]`
+                edgeDisplay.setAttribute("font-size", 200);
+                edgeDisplay.setAttribute("text-anchor", "middle")
+                svg.appendChild(edgeDisplay);
+                if (!document.getElementById("displayEdges").checked) {
+                    edgeDisplay.setAttribute("display", "none");
+                }
+            }
+        }
+        const displayVertices = () => {
+            svg.querySelectorAll(".vertex-text").forEach(text => text.remove())
+            for (let i = 0; i < vertices.length; i++) {
+                vertexDisplay = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                vertexDisplay.setAttribute("x", `${vertices[i][0]}`);
+                vertexDisplay.setAttribute("y", `${vertices[i][1]}`);
+                vertexDisplay.setAttribute("class", "vertex-text")
+                vertexDisplay.textContent = `(${Math.trunc(vertices[i][0])}, ${Math.trunc(vertices[i][1])})`;
+                //vertexDisplay.textContent = `(${i})`
+                vertexDisplay.setAttribute("font-size", 200);
+                vertexDisplay.setAttribute("text-anchor", "middle")
+                svg.appendChild(vertexDisplay);
+                if (!document.getElementById("displayVertices").checked) {
+                    vertexDisplay.setAttribute("display", "none");
+                }
+            }
+        }
+
         const findIntersection = (targetLine, testLine) => {
 			let targetDirVector = sub(vertices[targetLine[1]] , vertices[targetLine[0]])
             let testDirVector = sub(vertices[testLine[1]] , vertices[testLine[0]])
@@ -439,7 +661,7 @@
             let t = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), testDirVector) / cross2D(targetDirVector, testDirVector);
             let r = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), targetDirVector) / cross2D(targetDirVector, testDirVector);
 
-            if ((0.000001 < t && t < 1) && (0.000001 < r && r < 1)) {
+            if ((0.000001 < t && t <= 1) && (0.000001 < r && r <= 1)) { //r = 1 case included to check case where drawn line "intersects" endpoint of testLine
                 let newVertex = add(vertices[testLine[0]], mult(testDirVector, r))
             	return ([newVertex, t]);
             } else {
@@ -448,6 +670,9 @@
         }
 
         const mouseUpEvent = (event) => {
+            for (const line of svg.querySelectorAll(".preview-line")) {
+                line.remove();
+            }
             if (event.button === 0) {
                 switch (sketchMode) {
                     case "line":
@@ -457,11 +682,9 @@
             } else if (event.button === 2) {
                 //wip
             }
-            
-            for (const line of svg.querySelectorAll(".preview-line")) {
-                line.remove()
-            }
-			debugArr(vertices, edges, edges_assignment)
+            displayEdges2();
+            displayVertices();
+            debugArr(vertices, edges, edges_assignment);
         }
         const setPreviewLine = (event) => {
             if (svg.querySelectorAll(".preview-line").length === 0) {
@@ -588,7 +811,7 @@
             newButton.style.position = "absolute";
             newButton.classList.add(className);
             newButton.style.top = Math.floor(id / buttonRowCount) * buttonHeight + 10 + buttonOffset + "px";
-            newButton.style.left = (id % buttonRowCount) * buttonWidth + 10 + "px";
+            newButton.style.left = (id % buttonRowCount) * buttonWidth + 5 + "px";
             if (array[id].text != undefined) {
                 newButton.innerHTML = array[id].text
             }
