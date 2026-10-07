@@ -37,6 +37,9 @@
             #crease-display {
                 user-select: none;
             }
+            button > img {
+                pointer-events: none;
+            }
             button,input {
                 width: var(--button-width);
                 height: var(--button-height);
@@ -98,6 +101,10 @@
                 stroke-width: var(--line-width);
                 stroke: black;
             }
+            .highlight-line {
+                stroke-width: calc(var(--line-width)*5);
+                stroke: rgb(255, 255, 0);
+            }
         </style>
     </head>
     <body>
@@ -139,13 +146,14 @@
         let mouseMode = "up";
         let vertices = [[0,0],[10000,0],[10000,10000],[0,10000]];
         let edges = [[0,1],[1,2],[2,3],[3,0]];
-        let edges_assignment = ["E","E","E","E"];
+        let edges_assignment = ["B","B","B","B"];
         let recentStartVertex;
         let recentStartVertexId;
         let recentEndVertex;
         let recentEndVertexId;
         let svgViewbox = {x1 : 0, y1 : 0, x2 : SVGHeight, y2 : SVGHeight}
         let pressedKey = "";
+        let selectedLines = [];
         const lineWidthButton = [
             {id : "decrease-line-width", type : "button", title : "Decrease Line Width", icon : "decreaseWidth.png", functionCall : () => {changeLineWidth(0)}},
             {id : "increase-line-width", type : "button", title : "Increase Line Width", icon : "increaseWidth.png", functionCall : () => {changeLineWidth(1)}},
@@ -157,22 +165,22 @@
             {id : "edge"     , type : "button", title : "Edge"     , text : "E", functionCall : () => {changeLineType(event)}},
         ];
         const toolButton = [
-            {id : "line"                , type : "button", title : "Draw Line"                , icon : "drawLine.png"},
-            {id : "restrictedLine"      , type : "button", title : "Restricted Line"          , icon : "restrictedLine.png"},
-            {id : "rabbitEar"           , type : "button", title : "Rabbit Ear"               , icon : "rabbitEar.png"},
-            {id : "flatFoldLine"        , type : "button", title : "Draw Flat Foldable Line"  , icon : "flatFoldableLine.png"},
-            {id : "extendLine"          , type : "button", title : "Extend Line"              , icon : "extendLine.png"},
-            {id : "perpendicularLine"   , type : "button", title : "Perpendicular Line"       , icon : "perpendicularLine.png"},
-            {id : "angleBisector"       , type : "button", title : "Angle Bisector"           , icon : "angleBisector.png"},
-            {id : "id4"                 , type : "button", title : "title4"},
-            {id : "extendLineSameColour", type : "button", title : "Extend Line (same colour)", icon : "extendLineSameColour.png"},
-            {id : "alternatingLines"    , type : "button", title : "Draw Alternating Lines"   , icon : "alternatingLines.png"},
-            {id : "reflectOverLine"     , type : "button", title : "Reflect Over Line"        , icon : "reflectOverLine.png"},
-            {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png"},
-            {id : "selectLines"         , type : "button", title : "Select Lines"             , icon : "selectLines.png"},
-            {id : "selectAll"           , type : "button", title : "Select All"               , icon : "selectAll.png"},
-            {id : "unselectLines"       , type : "button", title : "Unselect Lines"           , icon : "unselectLines.png"},
-            {id : "deselectAll"         , type : "button", title : "Deselect All"             , icon : "deselectAll.png"}
+            {id : "line"                , type : "button", title : "Draw Line"                , icon : "drawLine.png"            , functionCall : () => {changeSketchMode(event)}},
+            {id : "restrictedLine"      , type : "button", title : "Restricted Line"          , icon : "restrictedLine.png"      , functionCall : () => {changeSketchMode(event)}},
+            {id : "rabbitEar"           , type : "button", title : "Rabbit Ear"               , icon : "rabbitEar.png"           , functionCall : () => {changeSketchMode(event)}},
+            {id : "flatFoldLine"        , type : "button", title : "Draw Flat Foldable Line"  , icon : "flatFoldableLine.png"    , functionCall : () => {changeSketchMode(event)}},
+            {id : "extendLine"          , type : "button", title : "Extend Line"              , icon : "extendLine.png"          , functionCall : () => {changeSketchMode(event)}},
+            {id : "perpendicularLine"   , type : "button", title : "Perpendicular Line"       , icon : "perpendicularLine.png"   , functionCall : () => {changeSketchMode(event)}},
+            {id : "angleBisector"       , type : "button", title : "Angle Bisector"           , icon : "angleBisector.png"       , functionCall : () => {changeSketchMode(event)}},
+            {id : "id4"                 , type : "button", title : "title4"                                                      , functionCall : () => {changeSketchMode(event)}},
+            {id : "extendLineSameColour", type : "button", title : "Extend Line (same colour)", icon : "extendLineSameColour.png", functionCall : () => {changeSketchMode(event)}},
+            {id : "alternatingLines"    , type : "button", title : "Draw Alternating Lines"   , icon : "alternatingLines.png"    , functionCall : () => {changeSketchMode(event)}},
+            {id : "reflectOverLine"     , type : "button", title : "Reflect Over Line"        , icon : "reflectOverLine.png"     , functionCall : () => {changeSketchMode(event)}},
+            {id : "creaseThroughLayers" , type : "button", title : "Crease Through Layers"    , icon : "creaseThroughLayers.png" , functionCall : () => {changeSketchMode(event)}},
+            {id : "selectLines"         , type : "button", title : "Select Lines"             , icon : "selectLines.png"         , functionCall : () => {changeSketchMode(event)}},
+            {id : "selectAll"           , type : "button", title : "Select All"               , icon : "selectAll.png"           , functionCall : () => {changeSketchMode(event)}},
+            {id : "unselectLines"       , type : "button", title : "Unselect Lines"           , icon : "unselectLines.png"       , functionCall : () => {changeSketchMode(event)}},
+            {id : "deselectAll"         , type : "button", title : "Deselect All"             , icon : "deselectAll.png"         , functionCall : () => {changeSketchMode(event)}}
         ];
         const gridButton = [
             {id : "decrease-grid", type : "button", title : "Decrease Grid Size", icon : "decreaseGrid.png", functionCall : () => {changeGrid(0)}},
@@ -189,7 +197,7 @@
         const buttonHeight = 40;
         const gridButtonWidth = buttonHeight;
         const buttonPanel = document.getElementById("buttonPanel");
-        //add: import/ export .fold, select, delete
+        //add: export .fold, delete
 
         window.onkeydown = (event) => {
             updatePressedKey(event);
@@ -202,8 +210,6 @@
             SVGHeight = 10000;
             svgViewbox = {x1 : 0, y1 : 0, x2 : SVGHeight, y2 : SVGHeight};
             svg.setAttribute("viewBox", `${svgViewbox.x1} ${svgViewbox.y1} ${svgViewbox.x2} ${svgViewbox.y2}`);
-
-
         }
         
         const updatePressedKey = (event) => {
@@ -291,7 +297,11 @@
             newLine.setAttribute("y2", y2);
             newLine.classList.add(className);
             newLine.setAttribute("stroke-width", "var(--line-width)");
-            svg.appendChild(newLine);
+            if (className === "grid-line" || className === "highlight-line") {
+                svg.insertBefore(newLine, svg.firstChild);
+            } else {
+                svg.appendChild(newLine);
+            }
             return newLine;
         }
 
@@ -300,14 +310,14 @@
             for (const line of gridLines) {
                 line.remove();
             }
-            for (let col = 0; col < gridSize + 1; col++) {
+            for (let col = 1; col < gridSize; col++) {
                 let x1 = (col / gridSize) * 10000;
                 let x2 = (col / gridSize) * 10000;
                 let y1 = 0;
                 let y2 = 10000;
                 createLine(x1, y1, x2, y2, "grid-line"); 
             }
-            for (let row = 0; row < gridSize + 1; row++) {
+            for (let row = 1; row < gridSize; row++) {
                 let x1 = 0;
                 let x2 = 10000;
                 let y1 = (row / gridSize) * 10000;
@@ -318,6 +328,21 @@
 
         const changeLineType = (event) => {
             lineType = event.target.id;
+        }
+        const removeSelectedLines = () => {
+            for (const line of svg.querySelectorAll(".highlight-line")) {
+                line.remove();
+            }
+            selectedLines = [];
+        }
+        const changeSketchMode = (event) => {
+            sketchMode = event.target.id;
+            if (sketchMode !== "selectLines" && sketchMode !== "selectAll" && sketchMode !== "unselectLines") {
+                removeSelectedLines();
+            }
+            if (sketchMode === "selectAll") {
+                selectAllLines();
+            }
         }
         const setGrid = (event) => {
             let gridInput = Number(document.querySelector("#input-grid").value);
@@ -333,6 +358,7 @@
             }
             
         }
+
         const changeGrid = (val) => {
             if (val) {
                 gridSize *= 2;
@@ -473,28 +499,23 @@
             }
             debugArr(vertices, edges, edges_assignment)
         }
-        const mouseUpLine = (event) => {
-            let userX = getSvgCoord(event)[0];
-            let userY = getSvgCoord(event)[1];
-            //to make the below into a standalone function that creates editable lines
-            recentEndVertex = findNearestVertex(userX, userY);
-            recentEndVertexId = vertices.findIndex(vertex => vertex[0] === recentEndVertex[0] && vertex[1] === recentEndVertex[1])
-            if (recentEndVertex[1] === recentStartVertex[1] && recentEndVertex[0] === recentStartVertex[0]) {
+
+        const drawEditableLine = (startVertex, endVertex) => {
+            let startVertexId = recentStartVertexId;
+            let endVertexId = vertices.findIndex(vertex => vertex[0] === endVertex[0] && vertex[1] === endVertex[1])
+            if (startVertex[1] === endVertex[1] && startVertex[0] === endVertex[0]) {
                 debugArr(vertices, edges, edges_assignment)
                 return;
-            } else if (recentEndVertexId === -1) {
-
-                vertices.push(recentEndVertex);
-                recentEndVertexId = vertices.length - 1;
+            } else if (endVertexId === -1) {
+                vertices.push(endVertex);
+                endVertexId = vertices.length - 1;
             }
-
-            //checks if a line with same start and end points already exists, and update crease assignment if it does
             let recentEdgeId = Math.max(
-                edges.findIndex(line => (line[0] === recentEndVertexId && line[1] === recentStartVertexId)),
-                edges.findIndex(line => (line[0] === recentStartVertexId && line[1] === recentEndVertexId)));
+                edges.findIndex(line => (line[0] === endVertexId && line[1] === startVertexId)),
+                edges.findIndex(line => (line[0] === startVertexId && line[1] === endVertexId)));
             if (recentEdgeId === -1) {
-                createLine(recentStartVertex[0], recentStartVertex[1], recentEndVertex[0], recentEndVertex[1], lineType + "-line");
-                edges.push([recentStartVertexId, recentEndVertexId])
+                createLine(startVertex[0], startVertex[1], endVertex[0], endVertex[1], lineType + "-line");
+                edges.push([startVertexId, endVertexId])
                 recentEdgeId = edges.length - 1
                 switch (lineType) {
                     case "mountain":
@@ -507,7 +528,7 @@
                         edges_assignment.push("A");
                         break;
                     case "edge":
-                        edges_assignment.push("E");
+                        edges_assignment.push("B");
                         break;
                 }
             } else {
@@ -525,16 +546,16 @@
                         edges_assignment[recentEdgeId] = "A";
                         break;
                     case "edge":
-                        edges_assignment[recentEdgeId] = "E";
+                        edges_assignment[recentEdgeId] = "B";
                         break;
                 }
             }
 
-            
             const edges_length = edges.length;
             let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-            let newLineIntersections = [recentStartVertex, recentEndVertex];
-            
+            let newLineIntersections = [startVertex, endVertex];
+
+
             for (let i = 0; i < edges_length; i++) {
                 if (i === recentEdgeId) {
                     continue;
@@ -576,12 +597,13 @@
                     
                 }
             }
-            if (recentStartVertex[0] < recentEndVertex[0]) {
+
+            if (startVertex[0] < endVertex[0]) {
                 newLineIntersections.sort((a, b) => (a[0] - b[0]));
-            } else if (recentStartVertex[0] > recentEndVertex[0]) {
+            } else if (startVertex[0] > endVertex[0]) {
                 newLineIntersections.sort((a, b) => (b[0] - a[0]));
             } else {
-                if (recentStartVertex[1] < recentEndVertex[1]) {
+                if (startVertex[1] < endVertex[1]) {
                     newLineIntersections.sort((a, b) => (a[1] - b[1]));
                 } else {
                     newLineIntersections.sort((a, b) => (b[1] - a[1]));
@@ -609,12 +631,78 @@
                             edges_assignment.push("A");
                             break;
                         case "edge":
-                            edges_assignment.push("E");
+                            edges_assignment.push("B");
                             break;
                     }
                 }
             }
+        }
+        
+        const mouseUpLine = (event) => {
+            let userX = getSvgCoord(event)[0];
+            let userY = getSvgCoord(event)[1];
+            recentEndVertex = findNearestVertex(userX, userY);
+            drawEditableLine(recentStartVertex, recentEndVertex);
+        }
 
+        const findAnyIntersection = (point1, dirVector1, point2, dirVector2) => {
+            let t = cross2D(sub(point2, point1), dirVector2) / cross2D(dirVector1, dirVector2);
+            let r = cross2D(sub(point2, point1), dirVector1) / cross2D(dirVector1, dirVector2);
+            return add(point2, mult(dirVector2, r))
+        }
+
+        const getUnitVector = (vector) => {
+            let absDist = Math.hypot(vector[0], vector[1]);
+            return divide(vector, absDist);
+        }
+
+        const mouseUpAngleBisector = (event) => {
+            recentEndVertex = getSvgCoord(event);
+            if (recentStartVertex[0] === recentEndVertex[0] && recentStartVertex[1] === recentEndVertex[1]) {
+                if (selectedLines.length < 2) {
+                    selectSingleLine(event);
+                } else if (isParallel(selectedLines[0], selectedLines[1]) && selectedLines.length === 2) {
+                    selectSingleLine(event);
+                } else if (isParallel(selectedLines[0], selectedLines[1]) && selectedLines.length === 3) {
+                    if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
+                        let nearestEdgeId = findNearestEdge(recentEndVertex).id;
+                        if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                            console.log("draw middle line")
+                            removeSelectedLines();
+                        }
+                    }
+                } else if (!isParallel(selectedLines[0], selectedLines[1]) && selectedLines.length === 2) {
+                    if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
+                        let nearestEdgeId = findNearestEdge(recentEndVertex).id;
+                        if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                            
+                            let line0Vector = sub(vertices[selectedLines[0][1]], vertices[selectedLines[0][0]]);
+                            let line1Vector = sub(vertices[selectedLines[1][1]], vertices[selectedLines[1][0]]);
+                            let line3Vector = sub(vertices[edges[nearestEdgeId][1]], vertices[edges[nearestEdgeId][0]]);
+                            let bisectorStartVertex = findAnyIntersection(vertices[selectedLines[0][0]], line0Vector, vertices[selectedLines[1][0]],line1Vector);
+
+                            if (bisectorStartVertex[0] === vertices[selectedLines[0][1]][0] && bisectorStartVertex[1] === vertices[selectedLines[0][1]][1]) {
+                                line0Vector = mult(line0Vector, -1)
+                            }
+                            if (bisectorStartVertex[0] === vertices[selectedLines[1][1]][0] && bisectorStartVertex[1] === vertices[selectedLines[1][1]][1]) {
+                                line1Vector = mult(line1Vector, -1)
+                            }
+                            let bisectorVector = add(getUnitVector(line0Vector), getUnitVector(line1Vector))
+                            let bisectorEndVertex = findAnyIntersection(bisectorStartVertex, bisectorVector, vertices[edges[nearestEdgeId][0]], line3Vector)
+                            recentStartVertexId = vertices.findIndex(vertex => vertex[0] === bisectorStartVertex[0] && vertex[1] === bisectorStartVertex[1])
+                            if (recentStartVertexId === -1) {
+                                vertices.push(recentStartVertex);
+                                recentStartVertexId = vertices.length - 1;
+                            }
+                            drawEditableLine(bisectorStartVertex, bisectorEndVertex);
+                            removeSelectedLines();
+                        }
+                    }
+                } else {
+                    console.log("last case")
+                    console.log(!isParallel(selectedLines[0], selectedLines[1]))
+                }
+            }
         }
 
         const displayEdges2 = () => {
@@ -655,9 +743,9 @@
         }
 
         const findIntersection = (targetLine, testLine) => {
-			let targetDirVector = sub(vertices[targetLine[1]] , vertices[targetLine[0]])
-            let testDirVector = sub(vertices[testLine[1]] , vertices[testLine[0]])
-            
+			let targetDirVector = sub(vertices[targetLine[1]] , vertices[targetLine[0]]);
+            let testDirVector = sub(vertices[testLine[1]] , vertices[testLine[0]]);
+
             let t = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), testDirVector) / cross2D(targetDirVector, testDirVector);
             let r = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), targetDirVector) / cross2D(targetDirVector, testDirVector);
 
@@ -669,6 +757,173 @@
             }
         }
 
+        const findNearestEdge = (pointerVertex) => {
+            let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
+            for (let i = 0; i < edges.length; i++) {
+                let selectedLineX1 = +lines[i].getAttribute("x1");
+                let selectedLineY1 = +lines[i].getAttribute("y1");
+                let selectedLineX2 = +lines[i].getAttribute("x2");
+                let selectedLineY2 = +lines[i].getAttribute("y2");
+                let distanceToLineStart = getAbsDist(selectedLineX1, selectedLineY1, recentStartVertex[0], recentStartVertex[1]);
+                let distanceToLineEnd = getAbsDist(selectedLineX2, selectedLineY2, recentStartVertex[0], recentStartVertex[1]);
+                let selectedLineLength = getAbsDist(selectedLineX1, selectedLineY1, selectedLineX2, selectedLineY2);
+                if ((distanceToLineStart + distanceToLineEnd) <= selectedLineLength * 1.001) {
+                    return {id : i, x1 : selectedLineX1, y1 : selectedLineY1, x2 : selectedLineX2, y2 : selectedLineY2};
+                }
+            }
+        }
+
+        const selectSingleLine = (event) => {
+            if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
+                let nearestEdgeId = findNearestEdge(recentStartVertex).id;
+                let selectedLineX1 = findNearestEdge(recentStartVertex).x1;
+                let selectedLineY1 = findNearestEdge(recentStartVertex).y1;
+                let selectedLineX2 = findNearestEdge(recentStartVertex).x2;
+                let selectedLineY2 = findNearestEdge(recentStartVertex).y2;
+                if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                    createLine(selectedLineX1, selectedLineY1, selectedLineX2, selectedLineY2, "highlight-line");
+                    selectedLines.push(edges[nearestEdgeId]);
+
+                } 
+            }
+        }
+
+        const unselectSingleLine = (event) => {
+            if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
+                let nearestEdgeId = findNearestEdge(recentStartVertex).id;
+                let selectedLineX1 = findNearestEdge(recentStartVertex).x1;
+                let selectedLineY1 = findNearestEdge(recentStartVertex).y1;
+                let selectedLineX2 = findNearestEdge(recentStartVertex).x2;
+                let selectedLineY2 = findNearestEdge(recentStartVertex).y2;
+                if (edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                    let selectedEdgeId = selectedLines.findIndex(edge => edge[0] === edges[nearestEdgeId][0] && edge[1] === edges[nearestEdgeId][1]);
+                    let selectedLinesArr = svg.querySelectorAll(".highlight-line");
+                    selectedLinesArr.item(selectedLines.length - 1 - selectedEdgeId).remove();
+                    selectedLines.splice(selectedEdgeId, 1);
+                } 
+            }
+        }
+
+        const mouseUpUnselectLine = (event) => {
+            let lineToRemove = [];
+            let selectedLinesArr = svg.querySelectorAll(".highlight-line");
+            recentEndVertex = getSvgCoord(event);
+            const previewUpperLeftVertex = [Math.min(recentStartVertex[0], recentEndVertex[0]), Math.min(recentStartVertex[1], recentEndVertex[1])];
+            const previewUpperRightVertex = [Math.max(recentStartVertex[0], recentEndVertex[0]), Math.min(recentStartVertex[1], recentEndVertex[1])];
+            const previewLowerLeftVertex = [Math.min(recentStartVertex[0], recentEndVertex[0]), Math.max(recentStartVertex[1], recentEndVertex[1])];
+            const previewLowerRightVertex = [Math.max(recentStartVertex[0], recentEndVertex[0]), Math.max(recentStartVertex[1], recentEndVertex[1])];
+            if (recentStartVertex[0] === recentEndVertex[0] && recentStartVertex[1] === recentEndVertex[1]) {
+                unselectSingleLine(event);
+            } else {
+                for (let i = 0; i < selectedLines.length; i++) {
+                    let testDirVector = sub(vertices[selectedLines[i][1]] , vertices[selectedLines[i][0]]);
+                    
+                    let testPreviewVector1 = sub(previewUpperRightVertex, previewUpperLeftVertex);
+                    let testPreviewVector2 = sub(previewLowerRightVertex, previewUpperRightVertex);
+                    let testPreviewVector3 = sub(previewLowerLeftVertex, previewLowerRightVertex);
+                    let testPreviewVector4 = sub(previewUpperLeftVertex, previewLowerLeftVertex);
+
+                    let t1 = cross2D(sub(vertices[selectedLines[i][0]] , previewUpperLeftVertex), testDirVector) / cross2D(testPreviewVector1, testDirVector);
+                    let t2 = cross2D(sub(vertices[selectedLines[i][0]] , previewUpperRightVertex), testDirVector) / cross2D(testPreviewVector2, testDirVector);
+                    let t3 = cross2D(sub(vertices[selectedLines[i][0]] , previewLowerRightVertex), testDirVector) / cross2D(testPreviewVector3, testDirVector);
+                    let t4 = cross2D(sub(vertices[selectedLines[i][0]] , previewLowerLeftVertex), testDirVector) / cross2D(testPreviewVector4, testDirVector);
+
+                    let r1 = cross2D(sub(vertices[selectedLines[i][0]] , previewUpperLeftVertex), testPreviewVector1) / cross2D(testPreviewVector1, testDirVector);
+                    let r2 = cross2D(sub(vertices[selectedLines[i][0]] , previewUpperRightVertex), testPreviewVector2) / cross2D(testPreviewVector2, testDirVector);
+                    let r3 = cross2D(sub(vertices[selectedLines[i][0]] , previewLowerRightVertex), testPreviewVector3) / cross2D(testPreviewVector3, testDirVector);
+                    let r4 = cross2D(sub(vertices[selectedLines[i][0]] , previewLowerLeftVertex), testPreviewVector4) / cross2D(testPreviewVector4, testDirVector);
+
+                    let selectedLineX1 = +selectedLinesArr[selectedLines.length - 1 - i].getAttribute("x1");
+                    let selectedLineY1 = +selectedLinesArr[selectedLines.length - 1 - i].getAttribute("y1");
+                    let selectedLineX2 = +selectedLinesArr[selectedLines.length - 1 - i].getAttribute("x2");
+                    let selectedLineY2 = +selectedLinesArr[selectedLines.length - 1 - i].getAttribute("y2");
+                        
+                    if ((((0 < t1 && t1 < 1 && 0 < r1 && r1 < 1) || (0 < t2 && t2 < 1 && 0 < r2 && r2 < 1) || (0 < t3 && t3 < 1 && 0 < r3 && r3 < 1) || (0 < t4 && t4 < 1 && 0 < r4 && r4 < 1))) || 
+                        (previewUpperLeftVertex[0] < Math.min(selectedLineX1, selectedLineX2) &&
+                        previewLowerRightVertex[0] > Math.max(selectedLineX1, selectedLineX2) && 
+                        previewUpperLeftVertex[1] < Math.min(selectedLineY1, selectedLineY2) &&
+                        previewLowerRightVertex[1] > Math.max(selectedLineY1, selectedLineY2))) {
+                        
+                            lineToRemove.push(selectedLines[i])
+
+                    }
+                }
+                for (let i = 0; i < lineToRemove.length; i++) {
+                    let selectedEdgeId = selectedLines.findIndex(edge => edge[0] === lineToRemove[i][0] && edge[1] === lineToRemove[i][1]);
+                    let selectedLinesArr = svg.querySelectorAll(".highlight-line");
+                    selectedLinesArr.item(selectedLines.length - 1 - selectedEdgeId).remove();
+                    selectedLines.splice(selectedEdgeId, 1);
+                }
+            }
+        }
+
+        const selectAllLines = () => {
+            for (let i = 0; i < edges.length; i++) {
+                if (!edgeIsInArr(edges[i], selectedLines)) {
+                    let x1 = vertices[edges[i][0]][0];
+                    let y1 = vertices[edges[i][0]][1];
+                    let x2 = vertices[edges[i][1]][0];
+                    let y2 = vertices[edges[i][1]][1];
+                    createLine(x1, y1, x2, y2, "highlight-line");
+                    selectedLines.push(edges[i]);
+                    console.log("check")
+                } 
+            }
+
+        }
+        const mouseUpSelectLine = (event) => {
+            
+            let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
+            recentEndVertex = getSvgCoord(event);
+            const previewUpperLeftVertex = [Math.min(recentStartVertex[0], recentEndVertex[0]), Math.min(recentStartVertex[1], recentEndVertex[1])];
+            const previewUpperRightVertex = [Math.max(recentStartVertex[0], recentEndVertex[0]), Math.min(recentStartVertex[1], recentEndVertex[1])];
+            const previewLowerLeftVertex = [Math.min(recentStartVertex[0], recentEndVertex[0]), Math.max(recentStartVertex[1], recentEndVertex[1])];
+            const previewLowerRightVertex = [Math.max(recentStartVertex[0], recentEndVertex[0]), Math.max(recentStartVertex[1], recentEndVertex[1])];
+            console.log(previewUpperLeftVertex)
+            console.log(previewUpperRightVertex)
+            console.log(previewLowerLeftVertex)
+            console.log(previewLowerRightVertex)
+
+            //handles scenario for single pointer click
+            if (recentStartVertex[0] === recentEndVertex[0] && recentStartVertex[1] === recentEndVertex[1]) {
+                selectSingleLine(event);
+
+            //handles scenario for click and dragging a select box
+            } else {
+                for (let i = 0; i < edges.length; i++) {
+                    let testDirVector = sub(vertices[edges[i][1]] , vertices[edges[i][0]]);
+                    
+                    let testPreviewVector1 = sub(previewUpperRightVertex, previewUpperLeftVertex);
+                    let testPreviewVector2 = sub(previewLowerRightVertex, previewUpperRightVertex);
+                    let testPreviewVector3 = sub(previewLowerLeftVertex, previewLowerRightVertex);
+                    let testPreviewVector4 = sub(previewUpperLeftVertex, previewLowerLeftVertex);
+
+                    let t1 = cross2D(sub(vertices[edges[i][0]] , previewUpperLeftVertex), testDirVector) / cross2D(testPreviewVector1, testDirVector);
+                    let t2 = cross2D(sub(vertices[edges[i][0]] , previewUpperRightVertex), testDirVector) / cross2D(testPreviewVector2, testDirVector);
+                    let t3 = cross2D(sub(vertices[edges[i][0]] , previewLowerRightVertex), testDirVector) / cross2D(testPreviewVector3, testDirVector);
+                    let t4 = cross2D(sub(vertices[edges[i][0]] , previewLowerLeftVertex), testDirVector) / cross2D(testPreviewVector4, testDirVector);
+
+                    let r1 = cross2D(sub(vertices[edges[i][0]] , previewUpperLeftVertex), testPreviewVector1) / cross2D(testPreviewVector1, testDirVector);
+                    let r2 = cross2D(sub(vertices[edges[i][0]] , previewUpperRightVertex), testPreviewVector2) / cross2D(testPreviewVector2, testDirVector);
+                    let r3 = cross2D(sub(vertices[edges[i][0]] , previewLowerRightVertex), testPreviewVector3) / cross2D(testPreviewVector3, testDirVector);
+                    let r4 = cross2D(sub(vertices[edges[i][0]] , previewLowerLeftVertex), testPreviewVector4) / cross2D(testPreviewVector4, testDirVector);
+
+                    let selectedLineX1 = +lines[i].getAttribute("x1");
+                    let selectedLineY1 = +lines[i].getAttribute("y1");
+                    let selectedLineX2 = +lines[i].getAttribute("x2");
+                    let selectedLineY2 = +lines[i].getAttribute("y2");
+                        
+                    if ((((0 < t1 && t1 < 1 && 0 < r1 && r1 < 1) || (0 < t2 && t2 < 1 && 0 < r2 && r2 < 1) || (0 < t3 && t3 < 1 && 0 < r3 && r3 < 1) || (0 < t4 && t4 < 1 && 0 < r4 && r4 < 1))) || 
+                        (previewUpperLeftVertex[0] < Math.min(selectedLineX1, selectedLineX2) &&
+                        previewLowerRightVertex[0] > Math.max(selectedLineX1, selectedLineX2) && 
+                        previewUpperLeftVertex[1] < Math.min(selectedLineY1, selectedLineY2) &&
+                        previewLowerRightVertex[1] > Math.max(selectedLineY1, selectedLineY2))) {
+                        createLine(selectedLineX1, selectedLineY1, selectedLineX2, selectedLineY2, "highlight-line");
+                        selectedLines.push(edges[i]);
+                    }
+                }
+            }
+        }
         const mouseUpEvent = (event) => {
             for (const line of svg.querySelectorAll(".preview-line")) {
                 line.remove();
@@ -677,6 +932,15 @@
                 switch (sketchMode) {
                     case "line":
                         mouseUpLine(event);
+                        break;
+                    case "selectLines":
+                        mouseUpSelectLine(event);
+                        break;
+                    case "unselectLines":
+                        mouseUpUnselectLine(event);
+                        break;
+                    case "angleBisector":
+                        mouseUpAngleBisector(event);
                         break;
                 }
             } else if (event.button === 2) {
@@ -695,11 +959,30 @@
                 createLine(x1, y1, x2, y2, "preview-line");
                 let previewLine = svg.querySelector(".preview-line");
                 previewLine.classList.add(lineType + "-line")
-                } else {
-                    let previewLine = svg.querySelector(".preview-line")
-                    previewLine.setAttribute("x2", getSvgCoord(event)[0]);
-                    previewLine.setAttribute("y2", getSvgCoord(event)[1]);
-                }
+            } else {
+                let previewLine = svg.querySelector(".preview-line")
+                previewLine.setAttribute("x2", getSvgCoord(event)[0]);
+                previewLine.setAttribute("y2", getSvgCoord(event)[1]);
+            }
+        }
+
+        const setPreviewBox = (event) => {
+            if (svg.querySelectorAll(".preview-line").length === 0) {
+                createLine(recentStartVertex[0], recentStartVertex[1], getSvgCoord(event)[0], recentStartVertex[1], "preview-line")
+                createLine(getSvgCoord(event)[0], recentStartVertex[1], getSvgCoord(event)[0], getSvgCoord(event)[1], "preview-line")
+                createLine(getSvgCoord(event)[0], getSvgCoord(event)[1], recentStartVertex[0], getSvgCoord(event)[1], "preview-line")
+                createLine(recentStartVertex[0], getSvgCoord(event)[1], recentStartVertex[0], recentStartVertex[1], "preview-line")
+            } else {
+                let previewLineList = svg.querySelectorAll(".preview-line")
+                previewLineList[0].setAttribute("x2", getSvgCoord(event)[0]);
+                previewLineList[1].setAttribute("x1", getSvgCoord(event)[0]);
+                previewLineList[1].setAttribute("x2", getSvgCoord(event)[0]);
+                previewLineList[1].setAttribute("y2", getSvgCoord(event)[1]);
+                previewLineList[2].setAttribute("x1", getSvgCoord(event)[0]);
+                previewLineList[2].setAttribute("y1", getSvgCoord(event)[1]);
+                previewLineList[2].setAttribute("y2", getSvgCoord(event)[1]);
+                previewLineList[3].setAttribute("y1", getSvgCoord(event)[1]);
+            }
         }
         const mouseDownEvent = (event) => {
             if (event.button === 0) {
@@ -707,7 +990,16 @@
                 switch (sketchMode) {
                     case "line":
                         mouseDownLine(event);
-                        break;  
+                        break;
+                    case "selectLines":
+                        recentStartVertex = getSvgCoord(event);
+                        break;
+                    case "unselectLines":
+                        recentStartVertex = getSvgCoord(event);
+                        break;
+                    case "angleBisector":
+                        recentStartVertex = getSvgCoord(event);
+                        break;
                 }
             } else if (event.button === 2) {
                 mouseMode = "rightDown";
@@ -722,27 +1014,19 @@
         const mouseMoveEvent = (event) => {
             if (mouseMode === "leftDown") {
                 switch (sketchMode) {
-                    case ("line"):
+                    case "line":
                         setPreviewLine(event);
                         break;
+                    case "selectLines":
+                        setPreviewBox(event);
+                        break;
+                    case "unselectLines":
+                        setPreviewBox(event);
+                        break;
+                    
                 }
             } else if (mouseMode === "rightDown") {
-                if (svg.querySelectorAll(".preview-line").length === 0) {
-                    createLine(recentStartVertex[0], recentStartVertex[1], getSvgCoord(event)[0], recentStartVertex[1], "preview-line")
-                    createLine(getSvgCoord(event)[0], recentStartVertex[1], getSvgCoord(event)[0], getSvgCoord(event)[1], "preview-line")
-                    createLine(getSvgCoord(event)[0], getSvgCoord(event)[1], recentStartVertex[0], getSvgCoord(event)[1], "preview-line")
-                    createLine(recentStartVertex[0], getSvgCoord(event)[1], recentStartVertex[0], recentStartVertex[1], "preview-line")
-                } else {
-                    let previewLineList = svg.querySelectorAll(".preview-line")
-                    previewLineList[0].setAttribute("x2", getSvgCoord(event)[0]);
-                    previewLineList[1].setAttribute("x1", getSvgCoord(event)[0]);
-                    previewLineList[1].setAttribute("x2", getSvgCoord(event)[0]);
-                    previewLineList[1].setAttribute("y2", getSvgCoord(event)[1]);
-                    previewLineList[2].setAttribute("x1", getSvgCoord(event)[0]);
-                    previewLineList[2].setAttribute("y1", getSvgCoord(event)[1]);
-                    previewLineList[2].setAttribute("y2", getSvgCoord(event)[1]);
-                    previewLineList[3].setAttribute("y1", getSvgCoord(event)[1]);
-                }
+                setPreviewBox(event);
             } else if (mouseMode === "middleDown") {
                 event.preventDefault();
                 let viewBoxOffsetXOld = (recentStartVertex[0] - svgViewbox.x1)/(svgViewbox.x2);
@@ -817,7 +1101,7 @@
             }
 
             if ((array[id].functionCall != undefined) && (array[id].type == "button")) {
-                newButton.onclick = array[id].functionCall
+                newButton.onclick = array[id].functionCall;
             } else if ((array[id].functionCall != undefined) && (array[id].type == "input")) {
                 newButton.onkeydown = array[id].functionCall;
             }
@@ -866,8 +1150,26 @@
     		for (let i in a) {
     			c.push(a[i] + b[i])
 			}
-    		return c
+    		return c;
     	}
+
+        const divide = (a, k) => {
+            let c = [];
+            for (let i in a) {
+                c.push(a[i] / k)
+            }
+            return c;
+        }
+
+        const isParallel = (edge1, edge2) => {
+            let edge1DirVector = sub(vertices[edge1[1]] , vertices[edge1[0]]);
+            let edge2DirVector = sub(vertices[edge2[1]] , vertices[edge2[0]]);
+            return Math.abs(cross2D(edge1DirVector, edge2DirVector)) < 0.0001
+        }
+
+        const edgeIsInArr = (testEdge, arr) => {
+            return arr.some(edge => edge[0] === testEdge[0] && edge[1] === testEdge[1])
+        }
 
         createSVG();
         const svg = document.querySelector("#crease-display");
