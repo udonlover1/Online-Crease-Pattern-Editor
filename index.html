@@ -105,6 +105,9 @@
                 stroke-width: calc(var(--line-width)*5);
                 stroke: rgb(255, 255, 0);
             }
+            .flatfoldability-icon {
+                fill-opacity: 0.5;
+            }
         </style>
     </head>
     <body>
@@ -122,8 +125,12 @@
                 <p>Display Vertices</p>
             </div>
             <div>
-                <input id="displayEdges" type="checkbox" onchange="displayEdges2()"/>
+                <input id="displayEdges" type="checkbox" onchange="displayEdges()"/>
                 <p>Display Edges</p>
+            </div>
+            <div>
+                <input id="displayFF" type="checkbox" onchange="displayFF()"/>
+                <p>Check Vertex Flat Foldability</p>
             </div>
             <div>
                 <button id="resetViewbox" onclick="resetViewbox()">Reset Zoom</button>
@@ -135,10 +142,11 @@
         </div>
     </body>
     <script>
-        let buttonOffset = 150;
+        let buttonOffset = 180;
         let svgOffset = 40;
         let SVGHeight = 10000;
         let gridSize = 2;
+        let epsilon = 0.00001;
 
         let lineWidthFactor = 0.001;
         let lineWidthFactorIncrement = 0.0002;
@@ -146,7 +154,8 @@
         let lineType = "mountain";
         let mouseMode = "up";
         let vertices = [[0,0],[10000,0],[10000,10000],[0,10000]];
-        let edges = [[0,1],[1,2],[2,3],[3,0]];
+        let edges_vertices = [[0,1],[1,2],[2,3],[3,0]];
+        let vertices_edges = [[0,3],[0,1],[1,2],[2,3]];
         let edges_assignment = ["B","B","B","B"];
         let recentStartVertex;
         let recentStartVertexId;
@@ -438,7 +447,7 @@
         const fileDisplay = () => {
             removeSelectedLines();
             let vertices_coords = userFile.vertices_coords;
-            edges = userFile.edges_vertices;
+            edges_vertices = userFile.edges_vertices;
             edges_assignment = userFile.edges_assignment;
 
             //find largest vertex coordinate (typically the bottomright corner of the square crease pattern)
@@ -459,7 +468,7 @@
                 line.remove();
             }
             
-            for (let i = 0; i < edges.length; i++) {
+            for (let i = 0; i < edges_vertices.length; i++) {
                 let lineClass;
                 switch(edges_assignment[i]) {
                     case ("B"):
@@ -472,13 +481,13 @@
                         lineClass = "valley-line";
                         break;
                 }
-                let x1 = vertices[edges[i][0]][0];
-                let y1 = vertices[edges[i][0]][1];
-                let x2 = vertices[edges[i][1]][0];
-                let y2 = vertices[edges[i][1]][1];
+                let x1 = vertices[edges_vertices[i][0]][0];
+                let y1 = vertices[edges_vertices[i][0]][1];
+                let x2 = vertices[edges_vertices[i][1]][0];
+                let y2 = vertices[edges_vertices[i][1]][1];
                 createLine(x1, y1, x2, y2, lineClass);
             }
-            displayEdges2();
+            displayEdges();
             displayVertices();
         }
 
@@ -494,108 +503,379 @@
             
         }
 
+        //startVertex1, endVertex1 correspond to start and end vertex of drawn line
+        //startVertex2, endVertex2 correspond to start and end vertex of existing line (that is in edges_vertices)
+        const determineLineOverlap = (startVertex1, endVertex1, startVertex2, endVertex2) => {
+            if (Math.min(startVertex1[0], endVertex1[0]) === Math.min(startVertex2[0],endVertex2[0]) && 
+                Math.max(startVertex1[0], endVertex1[0]) === Math.max(startVertex2[0],endVertex2[0]) &&
+                Math.min(startVertex1[1], endVertex1[1]) === Math.min(startVertex2[1],endVertex2[1]) &&
+                Math.max(startVertex1[1], endVertex1[1]) === Math.max(startVertex2[1],endVertex2[1])) {
+                    return "Complete Overlap";
+            }
+            
+            let dirVector1 = sub(endVertex1, startVertex1);
+            let dirVector2 = sub(endVertex2, startVertex2);
+            if (isParallel2(startVertex1, endVertex1, startVertex2, endVertex2)) { //Parallel lines check
+                if (Math.abs(cross2D(sub(startVertex1, startVertex2), dirVector1)) < epsilon) { //Colinearity check
+                    if ((Math.min(startVertex1[0], endVertex1[0]) <= startVertex2[0] && startVertex2[0] <= Math.max(startVertex1[0], endVertex1[0])) && 
+                        (Math.min(startVertex1[0], endVertex1[0]) <= endVertex2[0] && endVertex2[0] <= Math.max(startVertex1[0], endVertex1[0]))) {
+                            return "Drawn Line Fully Overlapping Colinear"
+
+                    } else if ((Math.min(startVertex2[0], endVertex2[0]) <= startVertex1[0] && startVertex1[0] <= Math.max(startVertex2[0], endVertex2[0])) && 
+                        (Math.min(startVertex2[0], endVertex2[0]) <= endVertex1[0] && endVertex1[0] <= Math.max(startVertex2[0], endVertex2[0]))) {
+                            return "Existing Line Fully Overlapping Colinear"
+
+                    } else if ((Math.min(startVertex1[0], endVertex1[0]) < startVertex2[0] && startVertex2[0] < Math.max(startVertex1[0], endVertex1[0])) || 
+                        (Math.min(startVertex1[0], endVertex1[0]) < endVertex2[0] && endVertex2[0] < Math.max(startVertex1[0], endVertex1[0]))) {
+
+                            return "Partially Overlapping Colinear"
+                    } else {
+                        return "Non Overlapping Colinear"                    
+                    }
+
+                } else {
+                    return "Distinct Parallel"
+                }
+            } else {
+                let intersectionVertex = findAnyIntersection(startVertex1, dirVector1, startVertex2, dirVector2);
+                if ((Math.min(startVertex1[0], endVertex1[0]) <= intersectionVertex[0] && intersectionVertex[0] <= Math.max(startVertex1[0], endVertex1[0])) && //checks if intersection vertex lies on existing line and drawn line
+                    (Math.min(startVertex1[1], endVertex1[1]) <= intersectionVertex[1] && intersectionVertex[1] <= Math.max(startVertex1[1], endVertex1[1])) && //if yes, then continue to classify the intersection
+                    (Math.min(startVertex2[0], endVertex2[0]) <= intersectionVertex[0] && intersectionVertex[0] <= Math.max(startVertex2[0], endVertex2[0])) &&
+                    (Math.min(startVertex2[1], endVertex2[1]) <= intersectionVertex[1] && intersectionVertex[1] <= Math.max(startVertex2[1], endVertex2[1]))) {
+                         if (((intersectionVertex[0] === startVertex1[0] && intersectionVertex[1] === startVertex1[1]) ||       //checks if intersection vertex is EITHER start OR end vertex of drawn line
+                            (intersectionVertex[0] === endVertex1[0] && intersectionVertex[1] === endVertex1[1])) &&            //AND
+                           (!(intersectionVertex[0] === startVertex2[0] && intersectionVertex[1] === startVertex2[1]) &&        //checks if intersection vertex is NEITHER start NOR end vertex of existing line
+                            !(intersectionVertex[0] === endVertex2[0] && intersectionVertex[1] === endVertex2[1]))) {           
+                            return "Drawn Line Start/End Vertex Intersection";
+
+                        } else if (((intersectionVertex[0] === startVertex2[0] && intersectionVertex[1] === startVertex2[1]) || //checks if intersection vertex is EITHER start OR end vertex of existing line
+                                    (intersectionVertex[0] === endVertex2[0] && intersectionVertex[1] === endVertex2[1])) &&    //AND
+                                (!(intersectionVertex[0] === startVertex1[0] && intersectionVertex[1] === startVertex1[1]) &&   //checks if intersection vertex is NEITHER start NOR end vertex of drawn line
+                                !(intersectionVertex[0] === endVertex1[0] && intersectionVertex[1] === endVertex1[1]))) {       
+                            return "Existing Line Start/End Vertex Intersection";
+                                
+                        } else if (((intersectionVertex[0] === startVertex1[0] && intersectionVertex[1] === startVertex1[1]) || //checks if intersection vertex is EITHER start OR end vertex of drawn line
+                                    (intersectionVertex[0] === endVertex1[0] && intersectionVertex[1] === endVertex1[1])) &&    //AND
+                                ((intersectionVertex[0] === startVertex2[0] && intersectionVertex[1] === startVertex2[1]) ||    //checks if intersection vertex is EITHER start OR end vertex of existing line
+                                (intersectionVertex[0] === endVertex2[0] && intersectionVertex[1] === endVertex2[1]))) {        
+                            return "Both Start/End Vertex Intersection"
+                        } else {
+                            return "Intersecting Skew";
+                        } 
+                } else {
+                    return "Non Intersecting Skew"
+                } 
+            }
+        }
+
         const drawEditableLine = (startVertex, endVertex) => {
+            let drawNewLine = true;
+            let dirVector1;
+            let dirVector2;
+            let oldStartVertex;
+            let oldEndVertex;
+            let oldEndVertexId;
+            let intersectionVertex;
+            let intersectionVertexId;
+            //for clicks/ edges_vertices too small to draw, return
+            if (startVertex[1] === endVertex[1] && startVertex[0] === endVertex[0]) {
+                debugArr(vertices, edges_vertices, edges_assignment)
+                return;
+            }
             let startVertexId = vertices.findIndex(vertex => vertex[0] === startVertex[0] && vertex[1] === startVertex[1])
             if (startVertexId === -1) {
                 vertices.push(startVertex);
+                vertices_edges.push([]);
                 startVertexId = vertices.length - 1;
             }
+
             let endVertexId = vertices.findIndex(vertex => vertex[0] === endVertex[0] && vertex[1] === endVertex[1])
-            if (startVertex[1] === endVertex[1] && startVertex[0] === endVertex[0]) {
-                debugArr(vertices, edges, edges_assignment)
-                return;
-            } else if (endVertexId === -1) {
+            if (endVertexId === -1) {
                 vertices.push(endVertex);
+                vertices_edges.push([]);
                 endVertexId = vertices.length - 1;
             }
-            let recentEdgeId = Math.max(
-                edges.findIndex(line => (line[0] === endVertexId && line[1] === startVertexId)),
-                edges.findIndex(line => (line[0] === startVertexId && line[1] === endVertexId)));
-            if (recentEdgeId === -1) {
-                createLine(startVertex[0], startVertex[1], endVertex[0], endVertex[1], lineType + "-line");
-                edges.push([startVertexId, endVertexId])
-                recentEdgeId = edges.length - 1
-                switch (lineType) {
-                    case "mountain":
-                        edges_assignment.push("M");
-                        break;
-                    case "valley":
-                        edges_assignment.push("V");
-                        break;
-                    case "auxiliary":
-                        edges_assignment.push("A");
-                        break;
-                    case "edge":
-                        edges_assignment.push("B");
-                        break;
-                }
-            } else {
-                let lines = document.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-                lines[recentEdgeId].removeAttribute("class");
-                lines[recentEdgeId].classList.add(lineType + "-line")
-                switch (lineType) {
-                    case "mountain":
-                        edges_assignment[recentEdgeId] = "M";
-                        break;
-                    case "valley":
-                        edges_assignment[recentEdgeId] = "V";
-                        break;
-                    case "auxiliary":
-                        edges_assignment[recentEdgeId] = "A";
-                        break;
-                    case "edge":
-                        edges_assignment[recentEdgeId] = "B";
-                        break;
-                }
-            }
 
-            const edges_length = edges.length;
-            let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
             let newLineIntersections = [startVertex, endVertex];
 
+            let edges_vertices_length = edges_vertices.length;
 
-            for (let i = 0; i < edges_length; i++) {
-                if (i === recentEdgeId) {
-                    continue;
-                } else if (Array.isArray(findIntersection(edges[recentEdgeId], edges[i]))) {
+            for (let i = 0; i < edges_vertices_length; i++) {
+                let lines = document.querySelectorAll(".edge-line, .mountain-line, .valley-line");
+                switch (determineLineOverlap(startVertex, endVertex, vertices[edges_vertices[i][0]], vertices[edges_vertices[i][1]])) {
+                    case "Complete Overlap":
+                        let recentEdgeId = Math.max(
+                        edges_vertices.findIndex(line => (line[0] === endVertexId && line[1] === startVertexId)),
+                        edges_vertices.findIndex(line => (line[0] === startVertexId && line[1] === endVertexId)));
+                        
+                        lines[recentEdgeId].removeAttribute("class");
+                        lines[recentEdgeId].classList.add(lineType + "-line")
+                        switch (lineType) {
+                            case "mountain":
+                                edges_assignment[recentEdgeId] = "M";
+                                break;
+                            case "valley":
+                                edges_assignment[recentEdgeId] = "V";
+                                break;
+                            case "auxiliary":
+                                edges_assignment[recentEdgeId] = "A";
+                                break;
+                            case "edge":
+                                edges_assignment[recentEdgeId] = "B";
+                        }
+                        drawNewLine = false;
+                        console.log("Complete Overlap")
+                        break;
 
-                    let intersectionVertex = findIntersection(edges[recentEdgeId], edges[i])[0];
+                    case "Drawn Line Fully Overlapping Colinear":
+                        oldStartVertex = vertices[edges_vertices[i][0]];
+                        oldEndVertex = vertices[edges_vertices[i][1]];
+                        if (newLineIntersections.findIndex(vertex => vertex[0] === oldStartVertex[0] && vertex[1] === oldStartVertex[1]) === -1) {
+                            newLineIntersections.push(oldStartVertex);
+                        }
+                        if (newLineIntersections.findIndex(vertex => vertex[0] === oldEndVertex[0] && vertex[1] === oldEndVertex[1]) === -1) {
+                            newLineIntersections.push(oldEndVertex);
+                        }
+                        lines[i].removeAttribute("class");
+                        lines[i].classList.add(lineType + "-line")
+                        switch (lineType) {
+                            case "mountain":
+                                edges_assignment[i] = "M";
+                                break;
+                            case "valley":
+                                edges_assignment[i] = "V";
+                                break;
+                            case "auxiliary":
+                                edges_assignment[i] = "A";
+                                break;
+                            case "edge":
+                                edges_assignment[i] = "B";
+                        }
+                        //console.log("Drawn Line Fully Overlapping Colinear");
+                        break;
 
-                    //adds intersection vertex to array to split drawn line afterwards
-                    if (newLineIntersections.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]) === -1) {
-                        newLineIntersections.push(intersectionVertex);
-                    }
-
-                    //checks if intersectionVertex is already in vertices, otherwise creates a new vertex
-                    let intersectionVertexId = vertices.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1])
-                    if (intersectionVertexId === -1) {
-                        vertices.push(intersectionVertex);
-                        intersectionVertexId = vertices.length - 1;
-                    }
-                    let oldVertex = [+lines[i].getAttribute("x2"), +lines[i].getAttribute("y2")]
-                    let oldVertexId = edges[i][1];
-                    let oldLineType = lines[i].getAttribute("class");
-                    let oldLineAssignment = edges_assignment[i]
-
-
-
-                    //checks if intersectionVertex is at endpoint of testLine, to avoid creating lines of 0 length
-                    if ((oldVertex[0] != intersectionVertex[0]) || (oldVertex[1] != intersectionVertex[1])) {
-                        //handles creating new lines for SVG: shortens original line to end at intersection vertex
-                        lines[i].setAttribute("x2", intersectionVertex[0]);
-                        lines[i].setAttribute("y2", intersectionVertex[1]);
-                        //handles creating new lines for SVG: creates new line from intersection vertex to original end vertex
-                        createLine(intersectionVertex[0], intersectionVertex[1], oldVertex[0], oldVertex[1], oldLineType);
-                            
-                        //handles creating new element in edges, edges_assignment
-                        edges[i][1] = intersectionVertexId;
-                        edges.push([intersectionVertexId, oldVertexId]);
-                        edges_assignment.push(oldLineAssignment);
-                    }
+                    case "Existing Line Fully Overlapping Colinear":
                     
+                        if (vertices[edges_vertices[i][0]][0] === startVertex[0]) {
+                            lines[i].setAttribute("x1", endVertex[0]);
+                            lines[i].setAttribute("y1", endVertex[1]);
+                            vertices_edges[edges_vertices[i][0]].splice(vertices_edges[edges_vertices[i][0]].findIndex(edgeId => edgeId === i));
+                            vertices_edges[endVertexId].push(i)
+                            edges_vertices[i][0] = endVertexId;
+
+                        } else if (vertices[edges_vertices[i][1]][0] === startVertex[0]) {
+                            lines[i].setAttribute("x2", endVertex[0]);
+                            lines[i].setAttribute("y2", endVertex[1]);
+                            vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
+                            vertices_edges[endVertexId].push(i)
+                            edges_vertices[i][1] = endVertexId;
+                        } else if (vertices[edges_vertices[i][0]][0] === endVertex[0]) {
+                            lines[i].setAttribute("x1", startVertex[0]);
+                            lines[i].setAttribute("y1", startVertex[1]);
+                            vertices_edges[edges_vertices[i][0]].splice(vertices_edges[edges_vertices[i][0]].findIndex(edgeId => edgeId === i));
+                            vertices_edges[startVertexId].push(i)
+                            edges_vertices[i][0] = startVertexId;
+                        } else if (vertices[edges_vertices[i][1]][0] === endVertex[0]) {
+                            lines[i].setAttribute("x2", startVertex[0]);
+                            lines[i].setAttribute("y2", startVertex[1]);
+                            vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
+                            vertices_edges[endVertexId].push(i)
+                            edges_vertices[i][1] = startVertexId;
+                        } else {
+                            oldEndVertex = vertices[edges_vertices[i][1]];
+                            oldEndVertexId = edges_vertices[i][1];
+                            if (getAbsDist(vertices[edges_vertices[i][0]][0], vertices[edges_vertices[i][0]][1], startVertex[0], startVertex[1]) <
+                                getAbsDist(vertices[edges_vertices[i][0]][0], vertices[edges_vertices[i][0]][1], endVertex[0], endVertex[1])) {
+
+                                lines[i].setAttribute("x2", startVertex[0]);
+                                lines[i].setAttribute("y2", startVertex[1]);
+                                vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
+                                vertices_edges[startVertexId].push(i)
+                                edges_vertices[i][1] = startVertexId;
+                                
+
+                                createLine(endVertex[0], endVertex[1], oldEndVertex[0], oldEndVertex[1], lines[i].getAttribute("class"));
+                                vertices_edges[endVertexId].push(edges_vertices.length - 1);
+                                vertices_edges[oldEndVertexId].push(edges_vertices.length - 1);
+                                edges_vertices.push([endVertexId, oldEndVertexId]);
+                                edges_assignment.push(edges_assignment[i]);
+
+                            
+                            } else {
+                                lines[i].setAttribute("x2", endVertex[0]);
+                                lines[i].setAttribute("y2", endVertex[1]);
+                                vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
+                                vertices_edges[endVertexId].push(i)
+                                edges_vertices[i][1] = endVertexId;
+                                    
+                                createLine(startVertex[0], startVertex[1], oldEndVertex[0], oldEndVertex[1], lines[i].getAttribute("class"));
+                                vertices_edges[startVertexId].push(edges_vertices.length - 1);
+                                vertices_edges[oldEndVertexId].push(edges_vertices.length - 1);
+                                edges_vertices.push([startVertexId, oldEndVertexId]);
+                                edges_assignment.push(edges_assignment[i]);
+                            
+                            }
+                        }
+                        //console.log("Existing Line Fully Overlapping Colinear");
+                        break;
+
+                    case "Partially Overlapping Colinear":
+                        if ((Math.min(vertices[edges_vertices[i][0]][0], vertices[edges_vertices[i][1]][0]) < startVertex[0] && startVertex[0] < Math.max(vertices[edges_vertices[i][0]][0], vertices[edges_vertices[i][1]][0]))) {
+                            if (Math.min(startVertex[0], endVertex[0]) < vertices[edges_vertices[i][0]][0] && vertices[edges_vertices[i][0]][0] < Math.max(startVertex[0], endVertex[0])) {
+                                if (newLineIntersections.findIndex(vertex => vertex[0] === vertices[edges_vertices[i][0]][0] && vertex[1] === vertices[edges_vertices[i][0]][1]) === -1) {
+                                    newLineIntersections.push(vertices[edges_vertices[i][0]]);
+                                }
+                                lines[i].setAttribute("x1", startVertex[0]);
+                                lines[i].setAttribute("y1", startVertex[1]);
+                                vertices_edges[edges_vertices[i][0]].splice(vertices_edges[edges_vertices[i][0]].findIndex(edgeId => edgeId === i));
+                                vertices_edges[startVertexId].push(i)
+                                edges_vertices[i][0] = startVertexId;
+
+                            } else {
+                                if (newLineIntersections.findIndex(vertex => vertex[0] === vertices[edges_vertices[i][1]][0] && vertex[1] === vertices[edges_vertices[i][1]][1]) === -1) {
+                                    newLineIntersections.push(vertices[edges_vertices[i][1]]);
+                                }
+                                lines[i].setAttribute("x2", startVertex[0]);
+                                lines[i].setAttribute("y2", startVertex[1]);
+                                vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
+                                vertices_edges[startVertexId].push(i)
+                                edges_vertices[i][1] = startVertexId;
+
+                            }
+                        } else {
+                            if (Math.min(startVertex[0], endVertex[0]) < vertices[edges_vertices[i][0]][0] && vertices[edges_vertices[i][0]][0] < Math.max(startVertex[0], endVertex[0])) {
+                                if (newLineIntersections.findIndex(vertex => vertex[0] === vertices[edges_vertices[i][0]][0] && vertex[1] === vertices[edges_vertices[i][0]][1]) === -1) {
+                                    newLineIntersections.push(vertices[edges_vertices[i][0]]);
+                                }
+                                lines[i].setAttribute("x1", endVertex[0]);
+                                lines[i].setAttribute("y1", endVertex[1]);
+                                edges_vertices[i][0] = endVertexId;
+
+                            } else {
+                                if (newLineIntersections.findIndex(vertex => vertex[0] === vertices[edges_vertices[i][1]][0] && vertex[1] === vertices[edges_vertices[i][1]][1]) === -1) {
+                                    newLineIntersections.push(vertices[edges_vertices[i][1]]);
+                                }
+                                lines[i].setAttribute("x2", endVertex[0]);
+                                lines[i].setAttribute("y2", endVertex[1]);
+                                edges_vertices[i][1] = endVertexId;
+                            }
+                        }
+                        console.log("Partially Overlapping Colinear");
+                        break;
+
+                    case "Non Overlapping Colinear":
+                        //console.log("Non Overlapping Colinear");
+                        //no intersection required
+                        break;
+
+                    case "Distinct Parallel":
+                        //console.log("Distinct Parallel")
+                        //no intersection required
+                        break;
+
+                    case "Drawn Line Start/End Vertex Intersection":
+                        dirVector1 = sub(endVertex, startVertex);
+                        dirVector2 = sub(vertices[edges_vertices[i][1]], vertices[edges_vertices[i][0]]);
+                        oldStartVertex = vertices[edges_vertices[i][0]];
+                        oldEndVertex = vertices[edges_vertices[i][1]];
+                        oldEndVertexId = edges_vertices[i][1];
+                        intersectionVertex = findAnyIntersection(startVertex, dirVector1, vertices[edges_vertices[i][0]], dirVector2);
+                        intersectionVertexId = vertices.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]);
+                        if (intersectionVertexId === -1) {
+                            vertices.push(intersectionVertex);
+                            vertices_edges.push([]);
+                            intersectionVertexId = vertices.length - 1;
+                        }
+                        if (intersectionVertex[0] !== oldStartVertex[0] ||
+                            intersectionVertex[0] !== oldEndVertex[0] ||
+                            intersectionVertex[1] !== oldEndVertex[1] ||
+                            intersectionVertex[1] !== oldEndVertex[1]) {
+                            lines[i].setAttribute("x2", intersectionVertex[0]);
+                            lines[i].setAttribute("y2", intersectionVertex[1]);
+                            console.log(vertices_edges[edges_vertices[i][1]])
+                            vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i), 1);
+                            console.log(vertices_edges[edges_vertices[i][1]])
+                            vertices_edges[intersectionVertexId].push(i);
+                            edges_vertices[i][1] = intersectionVertexId;
+
+                            createLine(intersectionVertex[0], intersectionVertex[1], oldEndVertex[0], oldEndVertex[1], lines[i].getAttribute("class"));
+                            vertices_edges[intersectionVertexId].push(edges_vertices.length);
+                            vertices_edges[oldEndVertexId].push(edges_vertices.length);
+                            edges_vertices.push([intersectionVertexId, oldEndVertexId]);
+                            edges_assignment.push(edges_assignment[i]);
+                        }    
+                        //console.log("Drawn Line Start/End Vertex Intersection")
+                        break;
+
+                    case "Existing Line Start/End Vertex Intersection":
+                        dirVector1 = sub(endVertex, startVertex);
+                        dirVector2 = sub(vertices[edges_vertices[i][1]], vertices[edges_vertices[i][0]]);
+                        intersectionVertex = findAnyIntersection(startVertex, dirVector1, vertices[edges_vertices[i][0]], dirVector2);
+                        intersectionVertexId = vertices.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]);
+                        
+                        if (intersectionVertexId === -1) {
+                            vertices.push(intersectionVertex);
+                            vertices_edges.push([]);
+                            intersectionVertexId = vertices.length - 1;
+                        }
+
+                        if (newLineIntersections.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]) === -1) {
+                            newLineIntersections.push(intersectionVertex);
+                        }
+
+                        break;
+
+                    case "Both Start/End Vertex Intersection":
+                        //no intersection required
+                        break;
+
+                    case "Intersecting Skew":
+                        dirVector1 = sub(endVertex, startVertex);
+                        dirVector2 = sub(vertices[edges_vertices[i][1]], vertices[edges_vertices[i][0]]);
+                        oldStartVertex = vertices[edges_vertices[i][0]];
+                        oldEndVertex = vertices[edges_vertices[i][1]];
+                        oldEndVertexId = edges_vertices[i][1];
+                        intersectionVertex = findAnyIntersection(startVertex, dirVector1, vertices[edges_vertices[i][0]], dirVector2);
+                        intersectionVertexId = vertices.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]);
+
+                        if (intersectionVertexId === -1) {
+                            vertices.push(intersectionVertex);
+                            vertices_edges.push([]);
+                            intersectionVertexId = vertices.length - 1;
+                        }
+
+                        if (newLineIntersections.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]) === -1) {
+                            newLineIntersections.push(intersectionVertex);
+                        }
+
+                        //shortens endpoint of existing line to intersection point, draws new line from intersection to original endpoint of existing line
+                        if (intersectionVertex[0] !== oldStartVertex[0] ||
+                            intersectionVertex[0] !== oldEndVertex[0] ||
+                            intersectionVertex[1] !== oldEndVertex[1] ||
+                            intersectionVertex[1] !== oldEndVertex[1]) {
+                            lines[i].setAttribute("x2", intersectionVertex[0]);
+                            lines[i].setAttribute("y2", intersectionVertex[1]);
+                            vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i), 1);
+                            vertices_edges[intersectionVertexId].push(i);
+                            edges_vertices[i][1] = intersectionVertexId;
+
+                            createLine(intersectionVertex[0], intersectionVertex[1], oldEndVertex[0], oldEndVertex[1], lines[i].getAttribute("class"));
+                            vertices_edges[intersectionVertexId].push(edges_vertices.length);
+                            vertices_edges[oldEndVertexId].push(edges_vertices.length);
+                            edges_vertices.push([intersectionVertexId, oldEndVertexId]);
+                            edges_assignment.push(edges_assignment[i]);
+                        }
+                        break;
+                    
+                    case "Non Intersecting Skew":
+                        //no intersection required
+                        break;
+
+
                 }
             }
 
+            //sorts vertices along drawn line, depending on whether line is drawn right-to-left or left-to-right
             if (startVertex[0] < endVertex[0]) {
                 newLineIntersections.sort((a, b) => (a[0] - b[0]));
             } else if (startVertex[0] > endVertex[0]) {
@@ -607,31 +887,39 @@
                     newLineIntersections.sort((a, b) => (b[1] - a[1]));
                 }
             }
-            
-            if (newLineIntersections.length > 2) {
-                lines[recentEdgeId].setAttribute("x2", newLineIntersections[1][0]);
-                lines[recentEdgeId].setAttribute("y2", newLineIntersections[1][1]);
-                edges[recentEdgeId][1] = vertices.findIndex(vertex => vertex[0] === newLineIntersections[1][0] && vertex[1] === newLineIntersections[1][1])
-                for (i = 2; i < newLineIntersections.length; i++) {
-                    createLine(newLineIntersections[i - 1][0], newLineIntersections[i - 1][1], newLineIntersections[i][0], newLineIntersections[i][1], lineType + "-line");
-                    edges.push([
-                        vertices.findIndex(vertex => vertex[0] === newLineIntersections[i - 1][0] && vertex[1] === newLineIntersections[i - 1][1]),
-                        vertices.findIndex(vertex => vertex[0] === newLineIntersections[i][0] && vertex[1] === newLineIntersections[i][1])
-                    ]);
-                    switch (lineType) {
-                        case "mountain":
-                            edges_assignment.push("M");
-                            break;
-                        case "valley":
-                            edges_assignment.push("V");
-                            break;
-                        case "auxiliary":
-                            edges_assignment.push("A");
-                            break;
-                        case "edge":
-                            edges_assignment.push("B");
-                            break;
+
+            //draws new line, checking if existing line exists in the case of overlapping lines
+            if (drawNewLine === true) {
+                for (let i = 0; i < newLineIntersections.length - 1; i++) {
+                    let newStartVertex = newLineIntersections[i];
+                    let newStartVertexId = vertices.findIndex(vertex => vertex[0] === newStartVertex[0] && vertex[1] === newStartVertex[1]);
+                    let newEndVertex = newLineIntersections[i + 1];
+                    let newEndVertexId = vertices.findIndex(vertex => vertex[0] === newEndVertex[0] && vertex[1] === newEndVertex[1]);
+                    let newEdgeId = Math.max(
+                        edges_vertices.findIndex(line => (line[0] === newEndVertexId && line[1] === newStartVertexId)),
+                        edges_vertices.findIndex(line => (line[0] === newStartVertexId && line[1] === newEndVertexId)));
+                    if (newEdgeId === -1) {
+                        createLine(newStartVertex[0], newStartVertex[1], newEndVertex[0], newEndVertex[1], lineType + "-line");
+                        edges_vertices.push([newStartVertexId, newEndVertexId]);
+                        vertices_edges[newStartVertexId].push(edges_vertices.length - 1);
+                        vertices_edges[newEndVertexId].push(edges_vertices.length - 1);
+                        switch (lineType) {
+                            case "mountain":
+                                edges_assignment.push("M");
+                                break;
+                            case "valley":
+                                edges_assignment.push("V");
+                                break;
+                            case "auxiliary":
+                                edges_assignment.push("A");
+                                break;
+                            case "edge":
+                                edges_assignment.push("B");
+                                break;
+                        }
                     }
+                    
+
                 }
             }
         }
@@ -664,7 +952,7 @@
                 } else if (isParallel(selectedLines[0], selectedLines[1]) && selectedLines.length === 3) {
                     if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
                         let nearestEdgeId = findNearestEdge(recentEndVertex).id;
-                        if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                        if (!edgeIsInArr(edges_vertices[nearestEdgeId], selectedLines)) {
                             console.log("draw middle line")
                             removeSelectedLines();
                         }
@@ -672,11 +960,11 @@
                 } else if (!isParallel(selectedLines[0], selectedLines[1]) && selectedLines.length === 2) {
                     if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
                         let nearestEdgeId = findNearestEdge(recentEndVertex).id;
-                        if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                        if (!edgeIsInArr(edges_vertices[nearestEdgeId], selectedLines)) {
                             
                             let line0Vector = sub(vertices[selectedLines[0][1]], vertices[selectedLines[0][0]]);
                             let line1Vector = sub(vertices[selectedLines[1][1]], vertices[selectedLines[1][0]]);
-                            let line3Vector = sub(vertices[edges[nearestEdgeId][1]], vertices[edges[nearestEdgeId][0]]);
+                            let line3Vector = sub(vertices[edges_vertices[nearestEdgeId][1]], vertices[edges_vertices[nearestEdgeId][0]]);
                             let bisectorStartVertex = findAnyIntersection(vertices[selectedLines[0][0]], line0Vector, vertices[selectedLines[1][0]],line1Vector);
 
                             if (bisectorStartVertex[0] === vertices[selectedLines[0][1]][0] && bisectorStartVertex[1] === vertices[selectedLines[0][1]][1]) {
@@ -686,7 +974,7 @@
                                 line1Vector = mult(line1Vector, -1)
                             }
                             let bisectorVector = add(getUnitVector(line0Vector), getUnitVector(line1Vector))
-                            let bisectorEndVertex = findAnyIntersection(bisectorStartVertex, bisectorVector, vertices[edges[nearestEdgeId][0]], line3Vector)
+                            let bisectorEndVertex = findAnyIntersection(bisectorStartVertex, bisectorVector, vertices[edges_vertices[nearestEdgeId][0]], line3Vector)
 
                             drawEditableLine(bisectorStartVertex, bisectorEndVertex);
                             removeSelectedLines();
@@ -699,7 +987,163 @@
             }
         }
 
-        const displayEdges2 = () => {
+        const flatfoldabilityIcons = [
+            {id : "maekawa1M", tag : "polygon", fill : "red"  , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa1V", tag : "polygon", fill : "blue" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa1" , tag : "polygon", fill : "grey" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa2M", tag : "polygon", fill : "red"  , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa2V", tag : "polygon", fill : "blue" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa2" , tag : "polygon", fill : "grey" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa2Mkawasaki" , tag : "circle" , fill : "red"  , strokeWidth : "0", stroke : "none", radius : "100"},
+            {id : "maekawa2Vkawasaki" , tag : "circle" , fill : "blue" , strokeWidth : "0", stroke : "none", radius : "100"},
+            {id : "maekawa2kawasaki"  , tag : "circle" , fill : "grey" , strokeWidth : "0", stroke : "none", radius : "100"},
+            {id : "kawasaki"          , tag : "circle" , fill : "none" , strokeWidth : "5", stroke : "grey", radius : "100"}
+
+        ]
+
+       
+
+        const createFFIcon = () => {
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            for (const icon of flatfoldabilityIcons) {
+                const iconFF = document.createElementNS("http://www.w3.org/2000/svg", icon.tag);
+                iconFF.setAttribute("id", icon.id);
+                iconFF.setAttribute("fill", icon.fill);
+                iconFF.setAttribute("stroke-width", icon.strokeWidth);
+                iconFF.setAttribute("stroke", icon.stroke)
+                if (icon.id === "maekawa2M" || icon.id === "maekawa2V" || icon.id === "maekawa2") {
+                    let x1 = -icon.width / 2;
+                    let y1 = x1;
+                    let x2 = -x1;
+                    let y2 = y1;
+                    let x3 = -x1;
+                    let y3 = -y1;
+                    let x4 = x1;
+                    let y4 = -y1;
+                    iconFF.setAttribute("points", `${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`);
+                    
+                } else if (icon.id === "maekawa1M" || icon.id === "maekawa1V") {
+                    let x1 = 0;
+                    let y1 = -icon.width / 2;
+                    let x2 = icon.width / 2;
+                    let y2 = icon.width / 2;
+                    let x3 = -x2;
+                    let y3 = y2;
+                    iconFF.setAttribute("points", `${x1},${y1} ${x2},${y2} ${x3},${y3}`);
+                } else if (icon.tag === "circle") {
+                    iconFF.setAttribute("x", 0);
+                    iconFF.setAttribute("y", 0);
+                    iconFF.setAttribute("r", icon.radius);
+                } 
+                defs.appendChild(iconFF);
+            }      
+            svg.appendChild(defs);          
+        }
+
+        const getMountainCount = (vertexId) => {
+            let count = 0;
+            for (edgeId of vertices_edges[vertexId]) {
+                if (edges_assignment[edgeId] === "M") {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        const getValleyCount = (vertexId) => {
+            let count = 0;
+            for (edgeId of vertices_edges[vertexId]) {
+                if (edges_assignment[edgeId] === "V") {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        const getEdgeCount = (vertexId) => {
+            let count = 0;
+            for (edgeId of vertices_edges[vertexId]) {
+                if (edges_assignment[edgeId] === "B") {
+                    count++;
+                }
+            }
+            return count;
+        }
+        
+        const checkFF = (vertexId) => {
+            let mountainCount;
+            let upperIdealMountainCount;
+            let lowerIdealMountainCount;
+            let valleyCount;
+            let upperIdealValleyCount;
+            let lowerIdealValleyCount;
+            if (getEdgeCount(vertexId) > 0) {
+                return;
+            } else if ((vertices_edges[vertexId].length - getEdgeCount(vertexId)) % 2 !== 0) { //Fails Maekawa Rule #1
+                mountainCount = getMountainCount(vertexId);
+                valleyCount = getValleyCount(vertexId);
+                upperIdealMountainCount = valleyCount + 2;
+                upperIdealValleyCount = mountainCount + 2;
+                lowerIdealMountainCount = valleyCount - 2;
+                lowerIdealValleyCount = mountainCount - 2;
+                if (upperIdealMountainCount === mountainCount + 1 || lowerIdealMountainCount === mountainCount + 1) {
+                    return "#maekawa1M";
+                } else if (upperIdealValleyCount === valleyCount + 1 || lowerIdealValleyCount === valleyCount + 1) {
+                    return "#maekawa1V";
+                }   
+            } else {
+                mountainCount = getMountainCount(vertexId);
+                valleyCount = getValleyCount(vertexId);
+                if (mountainCount - valleyCount > 2) {
+                    return "#maekawa2V";
+                } else if (valleyCount - mountainCount > 2) {
+                    return "#maekawa2M"
+                } else if (mountainCount === valleyCount) {
+                    return "#maekawa2";
+                }
+            }
+        }
+
+        const displayFF = () => {
+            svg.querySelectorAll(".flatfoldability-icon").forEach(icon => icon.remove());
+            for (let i = 0; i < vertices.length; i++) {
+                let iconFF = document.createElementNS("http://www.w3.org/2000/svg", "use");
+                iconFF.setAttribute('x', `${vertices[i][0]}`);
+                iconFF.setAttribute('y', `${vertices[i][1]}`);
+                iconFF.setAttribute("class", "flatfoldability-icon");
+            
+                if (!document.getElementById("displayFF").checked) {
+                    iconFF.setAttribute("display", "none");
+                }
+
+                switch (checkFF(i)) {
+                    case "#maekawa1M":
+                        iconFF.setAttribute("href", "#maekawa1M");
+                        svg.appendChild(iconFF);
+                        break;
+                    case "#maekawa1V":
+                        iconFF.setAttribute("href", "#maekawa1V");
+                        svg.appendChild(iconFF);
+                        break;
+                    case "#maekawa2M":
+                        iconFF.setAttribute("href", "#maekawa2M");
+                        svg.appendChild(iconFF);
+                        break;
+                    case "#maekawa2V":
+                        iconFF.setAttribute("href", "#maekawa2V");
+                        svg.appendChild(iconFF);
+                        break;
+                    case "#maekawa2":
+                        iconFF.setAttribute("href", "#maekawa2");
+                        svg.appendChild(iconFF);
+                        break;
+                }
+            }
+        }
+
+
+
+        const displayEdges = () => {
             svg.querySelectorAll(".edge-text").forEach(text => text.remove());
             let lines = document.querySelectorAll(".edge-line, .mountain-line, .valley-line");
             for (let i = 0; i < lines.length; i++) {
@@ -709,7 +1153,7 @@
                 edgeDisplay.setAttribute("class", "edge-text")
                 //edgeDisplay.textContent = `[${Math.trunc(lines[i].getAttribute("x1"))},${Math.trunc(lines[i].getAttribute("y1"))},${Math.trunc(lines[i].getAttribute("x2"))},${Math.trunc(lines[i].getAttribute("y2"))}]`;
                 //edgeDisplay.textContent = `[${i}]`
-                edgeDisplay.textContent = `[${edges[i]}]`
+                edgeDisplay.textContent = `${i}:[${edges_vertices[i]}]`
                 edgeDisplay.setAttribute("font-size", 200);
                 edgeDisplay.setAttribute("text-anchor", "middle")
                 svg.appendChild(edgeDisplay);
@@ -736,24 +1180,12 @@
             }
         }
 
-        const findIntersection = (targetLine, testLine) => {
-			let targetDirVector = sub(vertices[targetLine[1]] , vertices[targetLine[0]]);
-            let testDirVector = sub(vertices[testLine[1]] , vertices[testLine[0]]);
 
-            let t = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), testDirVector) / cross2D(targetDirVector, testDirVector);
-            let r = cross2D(sub(vertices[testLine[0]] , vertices[targetLine[0]]), targetDirVector) / cross2D(targetDirVector, testDirVector);
 
-            if ((0.000001 < t && t <= 1) && (0.000001 < r && r <= 1)) { //r = 1 case included to check case where drawn line "intersects" endpoint of testLine
-                let newVertex = add(vertices[testLine[0]], mult(testDirVector, r))
-            	return ([newVertex, t]);
-            } else {
-                return null;
-            }
-        }
 
         const findNearestEdge = (pointerVertex) => {
             let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-            for (let i = 0; i < edges.length; i++) {
+            for (let i = 0; i < edges_vertices.length; i++) {
                 let selectedLineX1 = +lines[i].getAttribute("x1");
                 let selectedLineY1 = +lines[i].getAttribute("y1");
                 let selectedLineX2 = +lines[i].getAttribute("x2");
@@ -775,9 +1207,9 @@
                 let selectedLineY1 = findNearestEdge(recentStartVertex).y1;
                 let selectedLineX2 = findNearestEdge(recentStartVertex).x2;
                 let selectedLineY2 = findNearestEdge(recentStartVertex).y2;
-                if (!edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
+                if (!edgeIsInArr(edges_vertices[nearestEdgeId], selectedLines)) {
                     createLine(selectedLineX1, selectedLineY1, selectedLineX2, selectedLineY2, "highlight-line");
-                    selectedLines.push(edges[nearestEdgeId]);
+                    selectedLines.push(edges_vertices[nearestEdgeId]);
 
                 } 
             }
@@ -790,8 +1222,8 @@
                 let selectedLineY1 = findNearestEdge(recentStartVertex).y1;
                 let selectedLineX2 = findNearestEdge(recentStartVertex).x2;
                 let selectedLineY2 = findNearestEdge(recentStartVertex).y2;
-                if (edgeIsInArr(edges[nearestEdgeId], selectedLines)) {
-                    let selectedEdgeId = selectedLines.findIndex(edge => edge[0] === edges[nearestEdgeId][0] && edge[1] === edges[nearestEdgeId][1]);
+                if (edgeIsInArr(edges_vertices[nearestEdgeId], selectedLines)) {
+                    let selectedEdgeId = selectedLines.findIndex(edge => edge[0] === edges_vertices[nearestEdgeId][0] && edge[1] === edges_vertices[nearestEdgeId][1]);
                     let selectedLinesArr = svg.querySelectorAll(".highlight-line");
                     selectedLinesArr.item(selectedLines.length - 1 - selectedEdgeId).remove();
                     selectedLines.splice(selectedEdgeId, 1);
@@ -826,14 +1258,14 @@
         }
 
         const selectAllLines = () => {
-            for (let i = 0; i < edges.length; i++) {
-                if (!edgeIsInArr(edges[i], selectedLines)) {
-                    let x1 = vertices[edges[i][0]][0];
-                    let y1 = vertices[edges[i][0]][1];
-                    let x2 = vertices[edges[i][1]][0];
-                    let y2 = vertices[edges[i][1]][1];
+            for (let i = 0; i < edges_vertices.length; i++) {
+                if (!edgeIsInArr(edges_vertices[i], selectedLines)) {
+                    let x1 = vertices[edges_vertices[i][0]][0];
+                    let y1 = vertices[edges_vertices[i][0]][1];
+                    let x2 = vertices[edges_vertices[i][1]][0];
+                    let y2 = vertices[edges_vertices[i][1]][1];
                     createLine(x1, y1, x2, y2, "highlight-line");
-                    selectedLines.push(edges[i]);
+                    selectedLines.push(edges_vertices[i]);
                 } 
             }
 
@@ -841,38 +1273,52 @@
 
         const selectGroupLines = (upperLeftVertex, upperRightVertex, lowerLeftVertex, lowerRightVertex) => {
             let output = [];
-            for (let i = 0; i < edges.length; i++) {
-                let testDirVector = sub(vertices[edges[i][1]] , vertices[edges[i][0]]);
+            for (let i = 0; i < edges_vertices.length; i++) {
+                let testDirVector = sub(vertices[edges_vertices[i][1]] , vertices[edges_vertices[i][0]]);
                     
                 let testPreviewVector1 = sub(upperRightVertex, upperLeftVertex);
                 let testPreviewVector2 = sub(lowerRightVertex, upperRightVertex);
                 let testPreviewVector3 = sub(lowerLeftVertex, lowerRightVertex);
                 let testPreviewVector4 = sub(upperLeftVertex, lowerLeftVertex);
 
-                let t1 = cross2D(sub(vertices[edges[i][0]] , upperLeftVertex), testDirVector) / cross2D(testPreviewVector1, testDirVector);
-                let t2 = cross2D(sub(vertices[edges[i][0]] , upperRightVertex), testDirVector) / cross2D(testPreviewVector2, testDirVector);
-                let t3 = cross2D(sub(vertices[edges[i][0]] , lowerRightVertex), testDirVector) / cross2D(testPreviewVector3, testDirVector);
-                let t4 = cross2D(sub(vertices[edges[i][0]] , lowerLeftVertex), testDirVector) / cross2D(testPreviewVector4, testDirVector);
+                let t1 = cross2D(sub(vertices[edges_vertices[i][0]] , upperLeftVertex), testDirVector) / cross2D(testPreviewVector1, testDirVector);
+                let t2 = cross2D(sub(vertices[edges_vertices[i][0]] , upperRightVertex), testDirVector) / cross2D(testPreviewVector2, testDirVector);
+                let t3 = cross2D(sub(vertices[edges_vertices[i][0]] , lowerRightVertex), testDirVector) / cross2D(testPreviewVector3, testDirVector);
+                let t4 = cross2D(sub(vertices[edges_vertices[i][0]] , lowerLeftVertex), testDirVector) / cross2D(testPreviewVector4, testDirVector);
 
-                let r1 = cross2D(sub(vertices[edges[i][0]] , upperLeftVertex), testPreviewVector1) / cross2D(testPreviewVector1, testDirVector);
-                let r2 = cross2D(sub(vertices[edges[i][0]] , upperRightVertex), testPreviewVector2) / cross2D(testPreviewVector2, testDirVector);
-                let r3 = cross2D(sub(vertices[edges[i][0]] , lowerRightVertex), testPreviewVector3) / cross2D(testPreviewVector3, testDirVector);
-                let r4 = cross2D(sub(vertices[edges[i][0]] , lowerLeftVertex), testPreviewVector4) / cross2D(testPreviewVector4, testDirVector);
+                let r1 = cross2D(sub(vertices[edges_vertices[i][0]] , upperLeftVertex), testPreviewVector1) / cross2D(testPreviewVector1, testDirVector);
+                let r2 = cross2D(sub(vertices[edges_vertices[i][0]] , upperRightVertex), testPreviewVector2) / cross2D(testPreviewVector2, testDirVector);
+                let r3 = cross2D(sub(vertices[edges_vertices[i][0]] , lowerRightVertex), testPreviewVector3) / cross2D(testPreviewVector3, testDirVector);
+                let r4 = cross2D(sub(vertices[edges_vertices[i][0]] , lowerLeftVertex), testPreviewVector4) / cross2D(testPreviewVector4, testDirVector);
 
-                let selectedLineX1 = vertices[edges[i][0]][0];
-                let selectedLineY1 = vertices[edges[i][0]][1];
-                let selectedLineX2 = vertices[edges[i][1]][0];
-                let selectedLineY2 = vertices[edges[i][1]][1];
+                let selectedLineX1 = vertices[edges_vertices[i][0]][0];
+                let selectedLineY1 = vertices[edges_vertices[i][0]][1];
+                let selectedLineX2 = vertices[edges_vertices[i][1]][0];
+                let selectedLineY2 = vertices[edges_vertices[i][1]][1];
                         
                 if ((((0 < t1 && t1 < 1 && 0 < r1 && r1 < 1) || (0 < t2 && t2 < 1 && 0 < r2 && r2 < 1) || (0 < t3 && t3 < 1 && 0 < r3 && r3 < 1) || (0 < t4 && t4 < 1 && 0 < r4 && r4 < 1))) || 
                     (upperLeftVertex[0] < Math.min(selectedLineX1, selectedLineX2) &&
                     lowerRightVertex[0] > Math.max(selectedLineX1, selectedLineX2) && 
                     upperLeftVertex[1] < Math.min(selectedLineY1, selectedLineY2) &&
                     lowerRightVertex[1] > Math.max(selectedLineY1, selectedLineY2))) {                        
-                        output.push(edges[i]);
+                        output.push(edges_vertices[i]);
                 }
             }
             return output
+        }
+
+        const deleteExtraVertex = (vertexId) => {
+            vertices_edges.splice(vertexId, 1);
+            vertices.splice(vertexId, 1);
+            for (const edge of edges_vertices) {
+                if (edge[0] > vertexId) {
+                    edge[0]-= 1;
+                }
+
+                if (edge[1] > vertexId) {
+                    edge[1]-= 1;
+                }
+            }
         }
 
         const deleteSingleLine = () => {
@@ -880,8 +1326,23 @@
             if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
                 let nearestEdgeId = findNearestEdge(recentStartVertex).id;
                 lines.item(nearestEdgeId).remove();
-                edges.splice(nearestEdgeId, 1);
-                edges_assignment.splice(nera, 1)
+                vertices_edges[edges_vertices[nearestEdgeId][0]].splice(vertices_edges[edges_vertices[nearestEdgeId][0]].findIndex(edgeId => edgeId === nearestEdgeId), 1);
+                vertices_edges[edges_vertices[nearestEdgeId][1]].splice(vertices_edges[edges_vertices[nearestEdgeId][1]].findIndex(edgeId => edgeId === nearestEdgeId), 1);  
+                if (vertices_edges[edges_vertices[nearestEdgeId][0]].length === 0) {
+                    deleteExtraVertex(edges_vertices[nearestEdgeId][0]);
+                }
+                if (vertices_edges[edges_vertices[nearestEdgeId][1]].length === 0) {
+                    deleteExtraVertex(edges_vertices[nearestEdgeId][1]);
+                }
+                edges_vertices.splice(nearestEdgeId, 1);
+                edges_assignment.splice(nearestEdgeId, 1);
+                for (let i = 0; i < vertices_edges.length; i++) {
+                    for (let j = 0; j < vertices_edges[i].length; j++) {
+                        if (vertices_edges[i][j] > nearestEdgeId) {
+                            vertices_edges[i][j] -= 1;
+                        }
+                    }
+                }
             }
         }
 
@@ -894,16 +1355,38 @@
             if (recentStartVertex[0] === recentEndVertex[0] && recentStartVertex[1] === recentEndVertex[1]) {
                 deleteSingleLine();
             } else {
+                console.log(vertices_edges)
                 for (const line of selectGroupLines(previewUpperLeftVertex, previewUpperRightVertex, previewLowerLeftVertex, previewLowerRightVertex)) {
                     let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-                    let edgeId = edges.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
+                let edgeId = edges_vertices.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
                     lines.item(edgeId).remove();
-                    edges.splice(edgeId, 1);
-                    edges_assignment.splice(edgeId, 1)
 
+                    vertices_edges[edges_vertices[edgeId][0]].splice(vertices_edges[edges_vertices[edgeId][0]].findIndex(edgeId1 => edgeId1 === edgeId), 1);
+                    vertices_edges[edges_vertices[edgeId][1]].splice(vertices_edges[edges_vertices[edgeId][1]].findIndex(edgeId1 => edgeId1 === edgeId), 1);
+                    edges_vertices.splice(edgeId, 1);
+                    edges_assignment.splice(edgeId, 1);
+                    for (let i = 0; i < vertices_edges.length; i++) {
+                        for (let j = 0; j < vertices_edges[i].length; j++) {
+                            if (vertices_edges[i][j] > edgeId) {
+                                vertices_edges[i][j] -= 1;
+                            }
+                        }
+                    }
                 }
+                
+                
+                let offset = 0;
+                let vertices_length = vertices.length;
+                
+                for (let i = 0; i < vertices_length; i++) {
+                    if (vertices_edges[i - offset].length === 0) {
+                        deleteExtraVertex(i - offset);
+                        offset++;
+                    }
+                }
+                console.log(vertices_edges)
             }
-
+            
         }
         const mouseUpSelectLine = (event) => {
             recentEndVertex = getSvgCoord(event);
@@ -919,8 +1402,8 @@
             //handles scenario for click and dragging a select box
             } else {
                 for (const line of selectGroupLines(previewUpperLeftVertex, previewUpperRightVertex, previewLowerLeftVertex, previewLowerRightVertex)) {
-                    let edgeId = edges.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
-                    if (!edgeIsInArr(edges[edgeId], selectedLines)) {
+                    let edgeId = edges_vertices.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
+                    if (!edgeIsInArr(edges_vertices[edgeId], selectedLines)) {
                         createLine(vertices[line[0]][0], vertices[line[0]][1], vertices[line[1]][0], vertices[line[1]][1], "highlight-line");
                         selectedLines.push(line)
                     }
@@ -931,7 +1414,7 @@
 
         const invertAllMV = () => {
             let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-            for (let i = 0; i < edges.length; i++) {
+            for (let i = 0; i < edges_vertices.length; i++) {
                 switch (edges_assignment[i]) {
                     case "M":
                         lines[i].removeAttribute("class");
@@ -942,13 +1425,12 @@
                         lines[i].removeAttribute("class");
                         lines[i].classList.add("mountain-line")
                         edges_assignment[i] = "M";
-                        console.log("test")
                         break;
                 }
             }
-            displayEdges2();
+            displayEdges();
             displayVertices();
-            debugArr(vertices, edges, edges_assignment);
+            debugArr(vertices, edges_vertices, edges_assignment);
         }
 
 
@@ -962,14 +1444,14 @@
             const previewLowerRightVertex = [Math.max(recentStartVertex[0], recentEndVertex[0]), Math.max(recentStartVertex[1], recentEndVertex[1])];
             if (recentStartVertex[0] === recentEndVertex[0] && recentStartVertex[1] === recentEndVertex[1]) {
                 if (typeof(findNearestEdge(recentStartVertex)) === "object" && findNearestEdge(recentStartVertex) !== null) {
-                    linesToInvert.push(edges[findNearestEdge(recentStartVertex).id])
+                    linesToInvert.push(edges_vertices[findNearestEdge(recentStartVertex).id])
                 }
             } else {
                 linesToInvert = selectGroupLines(previewUpperLeftVertex, previewUpperRightVertex, previewLowerLeftVertex, previewLowerRightVertex);
             }
             for (const line of linesToInvert) {
                 let lines = svg.querySelectorAll(".edge-line, .mountain-line, .valley-line");
-                let edgeId = edges.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
+                let edgeId = edges_vertices.findIndex(edge => edge[0] === line[0] && edge[1] === line[1]);
                 switch (edges_assignment[edgeId]) {
                     case "M":
                         lines[edgeId].removeAttribute("class");
@@ -1010,9 +1492,11 @@
             } else if (event.button === 2) {
                 mouseUpDeleteLine(event);
             }
-            displayEdges2();
+            displayEdges();
             displayVertices();
-            debugArr(vertices, edges, edges_assignment);
+            displayFF();
+            debugArr(vertices, edges_vertices, edges_assignment);
+            console.log(vertices_edges);
         }
         const setPreviewLine = (event) => {
             if (svg.querySelectorAll(".preview-line").length === 0) {
@@ -1231,6 +1715,12 @@
             return c;
         }
 
+        const isParallel2 = (startVertex1, endVertex1, startVertex2, endVertex2) => {
+            let edge1DirVector = sub(endVertex1 , startVertex1);
+            let edge2DirVector = sub(endVertex2 , startVertex2);
+            return Math.abs(cross2D(edge1DirVector, edge2DirVector)) < epsilon;
+        }
+
         const isParallel = (edge1, edge2) => {
             let edge1DirVector = sub(vertices[edge1[1]] , vertices[edge1[0]]);
             let edge2DirVector = sub(vertices[edge2[1]] , vertices[edge2[0]]);
@@ -1245,6 +1735,9 @@
         const svg = document.querySelector("#crease-display");
         svg.style.setProperty("--line-width", (lineWidthFactor * SVGHeight) + "px")
         createGridLines();
+        createFFIcon();
+        
+
 
         createToggleButtonLayout(creaseButton, "creaseButton");
         createGridButtonLayout();
@@ -1285,7 +1778,7 @@
             for (elmt of arr1) {
                 text += "[" + elmt + "]" + "<br>"
             }
-            text += "<br> edges <br>"
+            text += "<br> edges_vertices <br>"
             for (elmt of arr2) {
                 text += "[" + elmt + "]" + "<br>"
             }
