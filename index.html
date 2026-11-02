@@ -518,15 +518,21 @@
             if (isParallel2(startVertex1, endVertex1, startVertex2, endVertex2)) { //Parallel lines check
                 if (Math.abs(cross2D(sub(startVertex1, startVertex2), dirVector1)) < epsilon) { //Colinearity check
                     if ((Math.min(startVertex1[0], endVertex1[0]) <= startVertex2[0] && startVertex2[0] <= Math.max(startVertex1[0], endVertex1[0])) && 
-                        (Math.min(startVertex1[0], endVertex1[0]) <= endVertex2[0] && endVertex2[0] <= Math.max(startVertex1[0], endVertex1[0]))) {
+                        (Math.min(startVertex1[1], endVertex1[1]) <= startVertex2[1] && startVertex2[1] <= Math.max(startVertex1[1], endVertex1[1])) &&
+                        (Math.min(startVertex1[0], endVertex1[0]) <= endVertex2[0] && endVertex2[0] <= Math.max(startVertex1[0], endVertex1[0])) &&
+                        (Math.min(startVertex1[1], endVertex1[1]) <= endVertex2[1] && endVertex2[1] <= Math.max(startVertex1[1], endVertex1[1]))) {
                             return "Drawn Line Fully Overlapping Colinear"
 
-                    } else if ((Math.min(startVertex2[0], endVertex2[0]) <= startVertex1[0] && startVertex1[0] <= Math.max(startVertex2[0], endVertex2[0])) && 
-                        (Math.min(startVertex2[0], endVertex2[0]) <= endVertex1[0] && endVertex1[0] <= Math.max(startVertex2[0], endVertex2[0]))) {
+                    } else if ((Math.min(startVertex2[0], endVertex2[0]) <= startVertex1[0] && startVertex1[0] <= Math.max(startVertex2[0], endVertex2[0])) &&
+                        (Math.min(startVertex2[1], endVertex2[1]) <= startVertex1[1] && startVertex1[1] <= Math.max(startVertex2[1], endVertex2[1])) &&
+                        (Math.min(startVertex2[0], endVertex2[0]) <= endVertex1[0] && endVertex1[0] <= Math.max(startVertex2[0], endVertex2[0])) && 
+                        (Math.min(startVertex2[1], endVertex2[1]) <= endVertex1[1] && endVertex1[1] <= Math.max(startVertex2[1], endVertex2[1]))) {
                             return "Existing Line Fully Overlapping Colinear"
 
                     } else if ((Math.min(startVertex1[0], endVertex1[0]) < startVertex2[0] && startVertex2[0] < Math.max(startVertex1[0], endVertex1[0])) || 
-                        (Math.min(startVertex1[0], endVertex1[0]) < endVertex2[0] && endVertex2[0] < Math.max(startVertex1[0], endVertex1[0]))) {
+                        (Math.min(startVertex1[1], endVertex1[1]) < startVertex2[1] && startVertex2[1] < Math.max(startVertex1[1], endVertex1[1])) ||
+                        (Math.min(startVertex1[0], endVertex1[0]) < endVertex2[0] && endVertex2[0] < Math.max(startVertex1[0], endVertex1[0])) ||
+                        (Math.min(startVertex1[1], endVertex1[1]) < endVertex2[1] && endVertex2[1] < Math.max(startVertex1[1], endVertex1[1]))) {
 
                             return "Partially Overlapping Colinear"
                     } else {
@@ -651,7 +657,7 @@
                             case "edge":
                                 edges_assignment[i] = "B";
                         }
-                        //console.log("Drawn Line Fully Overlapping Colinear");
+                        console.log("Drawn Line Fully Overlapping Colinear");
                         break;
 
                     case "Existing Line Fully Overlapping Colinear":
@@ -692,7 +698,7 @@
                                 vertices_edges[edges_vertices[i][1]].splice(vertices_edges[edges_vertices[i][1]].findIndex(edgeId => edgeId === i));
                                 vertices_edges[startVertexId].push(i)
                                 edges_vertices[i][1] = startVertexId;
-                                
+                            
 
                                 createLine(endVertex[0], endVertex[1], oldEndVertex[0], oldEndVertex[1], lines[i].getAttribute("class"));
                                 vertices_edges[endVertexId].push(edges_vertices.length - 1);
@@ -716,7 +722,7 @@
                             
                             }
                         }
-                        //console.log("Existing Line Fully Overlapping Colinear");
+                        console.log("Existing Line Fully Overlapping Colinear");
                         break;
 
                     case "Partially Overlapping Colinear":
@@ -804,7 +810,7 @@
                             edges_vertices.push([intersectionVertexId, oldEndVertexId]);
                             edges_assignment.push(edges_assignment[i]);
                         }    
-                        //console.log("Drawn Line Start/End Vertex Intersection")
+                        console.log("Drawn Line Start/End Vertex Intersection")
                         break;
 
                     case "Existing Line Start/End Vertex Intersection":
@@ -822,6 +828,7 @@
                         if (newLineIntersections.findIndex(vertex => vertex[0] === intersectionVertex[0] && vertex[1] === intersectionVertex[1]) === -1) {
                             newLineIntersections.push(intersectionVertex);
                         }
+                        console.log("Existing Line Start/End Vertex Intersection")
 
                         break;
 
@@ -865,6 +872,7 @@
                             edges_vertices.push([intersectionVertexId, oldEndVertexId]);
                             edges_assignment.push(edges_assignment[i]);
                         }
+                        console.log("Intersecting Skew")
                         break;
                     
                     case "Non Intersecting Skew":
@@ -990,10 +998,10 @@
         const flatfoldabilityIcons = [
             {id : "maekawa1M", tag : "polygon", fill : "red"  , strokeWidth : "0", stroke : "none", width : "200"},
             {id : "maekawa1V", tag : "polygon", fill : "blue" , strokeWidth : "0", stroke : "none", width : "200"},
-            {id : "maekawa1" , tag : "polygon", fill : "grey" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa1E", tag : "polygon", fill : "rgb(255, 0, 157)" , strokeWidth : "0", stroke : "none", width : "200"},
             {id : "maekawa2M", tag : "polygon", fill : "red"  , strokeWidth : "0", stroke : "none", width : "200"},
             {id : "maekawa2V", tag : "polygon", fill : "blue" , strokeWidth : "0", stroke : "none", width : "200"},
-            {id : "maekawa2" , tag : "polygon", fill : "grey" , strokeWidth : "0", stroke : "none", width : "200"},
+            {id : "maekawa2" , tag : "polygon", fill : "pink" , strokeWidth : "0", stroke : "none", width : "200"},
             {id : "maekawa2Mkawasaki" , tag : "circle" , fill : "red"  , strokeWidth : "0", stroke : "none", radius : "100"},
             {id : "maekawa2Vkawasaki" , tag : "circle" , fill : "blue" , strokeWidth : "0", stroke : "none", radius : "100"},
             {id : "maekawa2kawasaki"  , tag : "circle" , fill : "grey" , strokeWidth : "0", stroke : "none", radius : "100"},
@@ -1022,7 +1030,7 @@
                     let y4 = -y1;
                     iconFF.setAttribute("points", `${x1},${y1} ${x2},${y2} ${x3},${y3} ${x4},${y4}`);
                     
-                } else if (icon.id === "maekawa1M" || icon.id === "maekawa1V") {
+                } else if (icon.id === "maekawa1M" || icon.id === "maekawa1V" || icon.id === "maekawa1E") {
                     let x1 = 0;
                     let y1 = -icon.width / 2;
                     let x2 = icon.width / 2;
@@ -1060,7 +1068,7 @@
             return count;
         }
 
-        const getEdgeCount = (vertexId) => {
+        const getBoundaryCount = (vertexId) => {
             let count = 0;
             for (edgeId of vertices_edges[vertexId]) {
                 if (edges_assignment[edgeId] === "B") {
@@ -1071,17 +1079,22 @@
         }
         
         const checkFF = (vertexId) => {
-            let mountainCount;
+            let boundaryCount = getBoundaryCount(vertexId);
+            let mountainCount = getMountainCount(vertexId);
             let upperIdealMountainCount;
             let lowerIdealMountainCount;
-            let valleyCount;
+            let valleyCount = getValleyCount(vertexId);
             let upperIdealValleyCount;
             let lowerIdealValleyCount;
-            if (getEdgeCount(vertexId) > 0) {
-                return;
-            } else if ((vertices_edges[vertexId].length - getEdgeCount(vertexId)) % 2 !== 0) { //Fails Maekawa Rule #1
-                mountainCount = getMountainCount(vertexId);
-                valleyCount = getValleyCount(vertexId);
+            
+            if (boundaryCount > 0) {
+                if (boundaryCount !== 2) {
+                    return "#maekawa1E";
+                } else {
+                    //case for pink square, and big little big lemma
+                    return 
+                }
+            } else if (vertices_edges[vertexId].length % 2 !== 0) { //Fails Maekawa Rule #1
                 upperIdealMountainCount = valleyCount + 2;
                 upperIdealValleyCount = mountainCount + 2;
                 lowerIdealMountainCount = valleyCount - 2;
@@ -1092,16 +1105,65 @@
                     return "#maekawa1V";
                 }   
             } else {
-                mountainCount = getMountainCount(vertexId);
-                valleyCount = getValleyCount(vertexId);
-                if (mountainCount - valleyCount > 2) {
-                    return "#maekawa2V";
-                } else if (valleyCount - mountainCount > 2) {
-                    return "#maekawa2M"
-                } else if (mountainCount === valleyCount) {
-                    return "#maekawa2";
+                if (checkKawasaki(vertexId)) {//replace with kawasaki check
+                    if (mountainCount - valleyCount > 2) {
+                        return "#maekawa2V";
+                    } else if (valleyCount - mountainCount > 2) {
+                        return "#maekawa2M"
+                    } else if (mountainCount === valleyCount) {
+                        return "#maekawa2";
+                    }
+                } else {
+                    if (mountainCount - valleyCount > 2) {
+                        return "#maekawa2Vkawasaki";
+                    } else if (valleyCount - mountainCount > 2) {
+                        return "#maekawa2Mkawasaki"
+                    } else if (mountainCount === valleyCount) {
+                        return "#maekawa2kawasaki";
+                    } else if (Math.abs(mountainCount - valleyCount) === 2) {
+                        return "#kawasaki";
+                    }
                 }
+
             }
+        }
+
+        const dot2D = (a, b) => {
+            return a[0]*b[0] + a[1]*b[1]
+        }
+
+        const getAngle = (vertex1, vertex2, vertex3) => {
+            let unitVector1 = getUnitVector(sub(vertex1, vertex2));
+            let unitVector2 = getUnitVector(sub(vertex3, vertex2));
+            let theta = Math.atan2(cross2D(unitVector2, unitVector1), dot2D(unitVector2, unitVector1));
+            if (theta < 0) {theta += Math.PI * 2}
+            return theta
+        }
+
+        const checkKawasaki = (vertexId) => {
+            let angles = [];
+            let angleSum = 0;
+            let vertex1, vertex3;
+            let vertex2 = vertices[vertexId]; //assigns vertex2 to vertex of index 0 edge that is the intersection vertex
+            //index 0 edge is used as reference from which to calculate alternating angle sum
+            if (edges_vertices[vertices_edges[vertexId][0]][0] === vertexId) {      //assigns vertex1 to vertex of index 0 edge that is not the intersection vertex
+                vertex1 = vertices[edges_vertices[vertices_edges[vertexId][0]][1]];
+            } else {
+                vertex1 = vertices[edges_vertices[vertices_edges[vertexId][0]][0]];
+            }
+            for (let i = 1; i < vertices_edges[vertexId].length; i++) { //assigns vertex2 to vertex of index i edge that is not the intersection vertex
+                if (edges_vertices[vertices_edges[vertexId][i]][0] === vertexId) {
+                    vertex3 = vertices[edges_vertices[vertices_edges[vertexId][i]][1]];
+                } else {
+                    vertex3 = vertices[edges_vertices[vertices_edges[vertexId][i]][0]];
+                }
+                angles.push(getAngle(vertex1, vertex2, vertex3)); //clockwise taken as positive due to x-y coordinate system of svg
+            }
+            angles.sort((a, b) => (a - b));
+            for (let i = 0; i < angles.length; i++) {
+                angleSum += angles[i] * (-1)**(i);
+            }
+            return (Math.abs(angleSum - Math.PI)) < epsilon;
         }
 
         const displayFF = () => {
@@ -1115,29 +1177,8 @@
                 if (!document.getElementById("displayFF").checked) {
                     iconFF.setAttribute("display", "none");
                 }
-
-                switch (checkFF(i)) {
-                    case "#maekawa1M":
-                        iconFF.setAttribute("href", "#maekawa1M");
-                        svg.appendChild(iconFF);
-                        break;
-                    case "#maekawa1V":
-                        iconFF.setAttribute("href", "#maekawa1V");
-                        svg.appendChild(iconFF);
-                        break;
-                    case "#maekawa2M":
-                        iconFF.setAttribute("href", "#maekawa2M");
-                        svg.appendChild(iconFF);
-                        break;
-                    case "#maekawa2V":
-                        iconFF.setAttribute("href", "#maekawa2V");
-                        svg.appendChild(iconFF);
-                        break;
-                    case "#maekawa2":
-                        iconFF.setAttribute("href", "#maekawa2");
-                        svg.appendChild(iconFF);
-                        break;
-                }
+                iconFF.setAttribute("href", checkFF(i));
+                svg.appendChild(iconFF);
             }
         }
 
@@ -1151,8 +1192,6 @@
                 edgeDisplay.setAttribute("x", `${(+lines[i].getAttribute("x1") + +lines[i].getAttribute("x2")) / 2}`);
                 edgeDisplay.setAttribute("y", `${(+lines[i].getAttribute("y1") + +lines[i].getAttribute("y2")) / 2}`);
                 edgeDisplay.setAttribute("class", "edge-text")
-                //edgeDisplay.textContent = `[${Math.trunc(lines[i].getAttribute("x1"))},${Math.trunc(lines[i].getAttribute("y1"))},${Math.trunc(lines[i].getAttribute("x2"))},${Math.trunc(lines[i].getAttribute("y2"))}]`;
-                //edgeDisplay.textContent = `[${i}]`
                 edgeDisplay.textContent = `${i}:[${edges_vertices[i]}]`
                 edgeDisplay.setAttribute("font-size", 200);
                 edgeDisplay.setAttribute("text-anchor", "middle")
@@ -1170,7 +1209,6 @@
                 vertexDisplay.setAttribute("y", `${vertices[i][1]}`);
                 vertexDisplay.setAttribute("class", "vertex-text")
                 vertexDisplay.textContent = `(${Math.trunc(vertices[i][0])}, ${Math.trunc(vertices[i][1])})`;
-                //vertexDisplay.textContent = `(${i})`
                 vertexDisplay.setAttribute("font-size", 200);
                 vertexDisplay.setAttribute("text-anchor", "middle")
                 svg.appendChild(vertexDisplay);
@@ -1496,7 +1534,6 @@
             displayVertices();
             displayFF();
             debugArr(vertices, edges_vertices, edges_assignment);
-            console.log(vertices_edges);
         }
         const setPreviewLine = (event) => {
             if (svg.querySelectorAll(".preview-line").length === 0) {
